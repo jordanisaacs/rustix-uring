@@ -256,7 +256,12 @@ impl InnerBufRing {
 
     // Returns the buffer the uring interface picked from the buf_ring for the completion result
     // represented by the res and flags.
-    fn get_buf(&self, buf_ring: FixedSizeBufRing, res: u32, flags: u32) -> io::Result<GBuf> {
+    fn get_buf(
+        &self,
+        buf_ring: FixedSizeBufRing,
+        res: u32,
+        flags: io_uring::sys::IoringCqeFlags,
+    ) -> io::Result<GBuf> {
         // This fn does the odd thing of having self as the BufRing and taking an argument that is
         // the same BufRing but wrapped in Rc<_> so the wrapped buf_ring can be passed to the
         // outgoing GBuf.

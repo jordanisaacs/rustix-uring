@@ -32,7 +32,7 @@ pub struct SubmissionQueue<'a, E: EntryMarker = Entry> {
 ///
 /// This is implemented for [`Entry`] and [`Entry128`].
 pub trait EntryMarker: Clone + Debug + From<Entry> + private::Sealed {
-    const BUILD_FLAGS: u32;
+    const BUILD_FLAGS: sys::IoringSetupFlags;
 }
 
 /// A 64-byte submission queue entry (SQE), representing a request for an I/O operation.
@@ -56,25 +56,26 @@ fn test_entry_sizes() {
 
 bitflags! {
     /// Submission flags
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
     pub struct Flags: u8 {
         /// When this flag is specified,
         /// `fd` is an index into the files array registered with the io_uring instance.
         #[doc(hidden)]
-        const FIXED_FILE = 1 << sys::IOSQE_FIXED_FILE_BIT;
+        const FIXED_FILE =  sys::IoringSqeFlags::FIXED_FILE.bits();
 
         /// When this flag is specified,
         /// the SQE will not be started before previously submitted SQEs have completed,
         /// and new SQEs will not be started before this one completes.
-        const IO_DRAIN = 1 << sys::IOSQE_IO_DRAIN_BIT;
+        const IO_DRAIN =  sys::IoringSqeFlags::IO_DRAIN.bits();
 
         /// When this flag is specified,
         /// it forms a link with the next SQE in the submission ring.
         /// That next SQE will not be started before this one completes.
-        const IO_LINK = 1 << sys::IOSQE_IO_LINK_BIT;
+        const IO_LINK =  sys::IoringSqeFlags::IO_LINK.bits();
 
         /// Like [`IO_LINK`](Self::IO_LINK), but it doesn’t sever regardless of the completion
         /// result.
-        const IO_HARDLINK = 1 << sys::IOSQE_IO_HARDLINK_BIT;
+        const IO_HARDLINK =  sys::IoringSqeFlags::IO_HARDLINK.bits();
 
         /// Normal operation for io_uring is to try and issue an sqe as non-blocking first,
         /// and if that fails, execute it in an async manner.
@@ -82,7 +83,7 @@ bitflags! {
         /// To support more efficient overlapped operation of requests
         /// that the application knows/assumes will always (or most of the time) block,
         /// the application can ask for an sqe to be issued async from the start.
-        const ASYNC = 1 << sys::IOSQE_ASYNC_BIT;
+        const ASYNC =  sys::IoringSqeFlags::ASYNC.bits();
 
         /// Conceptually the kernel holds a set of buffers organized into groups. When you issue a
         /// request with this flag and set `buf_group` to a valid buffer group ID (e.g.
@@ -107,10 +108,10 @@ bitflags! {
         ///
         /// See also [the LWN thread on automatic buffer
         /// selection](https://lwn.net/Articles/815491/).
-        const BUFFER_SELECT = 1 << sys::IOSQE_BUFFER_SELECT_BIT;
+        const BUFFER_SELECT =  sys::IoringSqeFlags::BUFFER_SELECT.bits();
 
         /// Don't post CQE if request succeeded.
-        const SKIP_SUCCESS = 1 << sys::IOSQE_CQE_SKIP_SUCCESS_BIT;
+        const SKIP_SUCCESS =  sys::IoringSqeFlags::CQE_SKIP_SUCCESS.bits();
     }
 }
 
@@ -181,7 +182,10 @@ impl<E: EntryMarker> SubmissionQueue<'_, E> {
     #[inline]
     pub fn need_wakeup(&self) -> bool {
         unsafe {
-            (*self.queue.flags).load(atomic::Ordering::Acquire) & sys::IORING_SQ_NEED_WAKEUP != 0
+            sys::IoringSqFlags::from_bits_retain(
+                (*self.queue.flags).load(atomic::Ordering::Acquire),
+            )
+            .contains(sys::IoringSqFlags::NEED_WAKEUP)
         }
     }
 
@@ -194,14 +198,20 @@ impl<E: EntryMarker> SubmissionQueue<'_, E> {
     /// Returns `true` if the completion queue ring is overflown.
     pub fn cq_overflow(&self) -> bool {
         unsafe {
-            (*self.queue.flags).load(atomic::Ordering::Acquire) & sys::IORING_SQ_CQ_OVERFLOW != 0
+            sys::IoringSqFlags::from_bits_retain(
+                (*self.queue.flags).load(atomic::Ordering::Acquire),
+            )
+            .contains(sys::IoringSqFlags::CQ_OVERFLOW)
         }
     }
 
     /// Returns `true` if completions are pending that should be processed. Only relevant when used
     /// in conjuction with the `setup_taskrun_flag` function. Available since 5.19.
     pub fn taskrun(&self) -> bool {
-        unsafe { (*self.queue.flags).load(atomic::Ordering::Acquire) & sys::IORING_SQ_TASKRUN != 0 }
+        unsafe {
+            (*self.queue.flags).load(atomic::Ordering::Acquire) & sys::IoringSqFlags::TASKRUN.bits()
+                != 0
+        }
     }
 
     /// Get the total number of entries in the submission queue ring buffer.
@@ -288,22 +298,38 @@ impl Entry {
     /// Set the submission event's [flags](Flags).
     #[inline]
     pub fn flags(mut self, flags: Flags) -> Entry {
-        self.0.flags |= flags.bits();
+        self.0.flags |= sys::IoringSqeFlags::from_bits(flags.bits()).unwrap();
         self
     }
 
-    /// Set the user data. This is an application-supplied value that will be passed straight
-    /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
+    /// Set the user data as a `u64`. This is an application-supplied value
+    /// that will be passed straight through into the
+    /// [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
     pub fn user_data(mut self, user_data: u64) -> Entry {
-        self.0.user_data = user_data;
+        self.0.user_data = sys::io_uring_user_data::from_u64(user_data);
         self
     }
 
-    /// Get the previously application-supplied user data.
+    /// Set the user data as a pointer. This is an application-supplied value
+    /// that will be passed straight through into the
+    /// [completion queue entry](crate::cqueue::Entry::user_data).
+    #[inline]
+    pub fn user_data_ptr(mut self, user_data: *mut libc::c_void) -> Entry {
+        self.0.user_data = sys::io_uring_user_data::from_ptr(user_data);
+        self
+    }
+
+    /// Get the previously application-supplied user data as a `u64`.
     #[inline]
     pub fn get_user_data(&self) -> u64 {
-        self.0.user_data
+        self.0.user_data.u64_()
+    }
+
+    /// Get the previously application-supplied user data as a pointer.
+    #[inline]
+    pub fn get_user_data_ptr(&self) -> *mut libc::c_void {
+        self.0.user_data.ptr()
     }
 
     /// Set the personality of this event. You can obtain a personality using
@@ -317,7 +343,7 @@ impl Entry {
 impl private::Sealed for Entry {}
 
 impl EntryMarker for Entry {
-    const BUILD_FLAGS: u32 = 0;
+    const BUILD_FLAGS: sys::IoringSetupFlags = sys::IoringSetupFlags::empty();
 }
 
 impl Clone for Entry {
@@ -341,7 +367,7 @@ impl Entry128 {
     /// Set the submission event's [flags](Flags).
     #[inline]
     pub fn flags(mut self, flags: Flags) -> Entry128 {
-        self.0 .0.flags |= flags.bits();
+        self.0 .0.flags |= sys::IoringSqeFlags::from_bits(flags.bits()).unwrap();
         self
     }
 
@@ -349,7 +375,15 @@ impl Entry128 {
     /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
     pub fn user_data(mut self, user_data: u64) -> Entry128 {
-        self.0 .0.user_data = user_data;
+        self.0 .0.user_data = sys::io_uring_user_data::from_u64(user_data);
+        self
+    }
+
+    /// Set the user data. This is an application-supplied value that will be passed straight
+    /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
+    #[inline]
+    pub fn user_data_ptr(mut self, user_data: *mut libc::c_void) -> Entry128 {
+        self.0 .0.user_data = sys::io_uring_user_data::from_ptr(user_data);
         self
     }
 
@@ -365,7 +399,7 @@ impl Entry128 {
 impl private::Sealed for Entry128 {}
 
 impl EntryMarker for Entry128 {
-    const BUILD_FLAGS: u32 = sys::IORING_SETUP_SQE128;
+    const BUILD_FLAGS: sys::IoringSetupFlags = sys::IoringSetupFlags::SQE128;
 }
 
 impl From<Entry> for Entry128 {
