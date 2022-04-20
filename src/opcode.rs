@@ -17,7 +17,7 @@ macro_rules! assign_fd {
             sealed::Target::Fd(fd) => $sqe.fd = fd,
             sealed::Target::Fixed(idx) => {
                 $sqe.fd = idx as _;
-                $sqe.flags |= crate::squeue::Flags::FIXED_FILE.bits();
+                $sqe.flags |= sys::IoringSqeFlags::FIXED_FILE;
             }
         }
     };
@@ -76,7 +76,7 @@ macro_rules! opcode {
             /// The opcode of the operation. This can be passed to
             /// [`Probe::is_supported`](crate::Probe::is_supported) to check if this operation is
             /// supported with the current kernel.
-            pub const CODE: u8 = $opcode as _;
+            pub const CODE: sys::IoringOp = $opcode as _;
 
             $(
                 $( #[$opt_meta] )*
@@ -107,7 +107,7 @@ opcode! {
     #[derive(Debug)]
     pub struct Nop { ;; }
 
-    pub const CODE = sys::IORING_OP_NOP;
+    pub const CODE = sys::IoringOp::Nop;
 
     pub fn build(self) -> Entry {
         let Nop {} = self;
@@ -131,11 +131,11 @@ opcode! {
         offset: u64 = 0,
         /// specified for read operations, contains a bitwise OR of per-I/O flags,
         /// as described in the `preadv2(2)` man page.
-        rw_flags: types::RwFlags = 0,
+        rw_flags: types::RwFlags = types::RwFlags::empty(),
         buf_group: u16 = 0
     }
 
-    pub const CODE = sys::IORING_OP_READV;
+    pub const CODE = sys::IoringOp::Readv;
 
     pub fn build(self) -> Entry {
         let Readv {
@@ -148,12 +148,12 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = iovec as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.rw_flags = rw_flags;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = iovec as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.rw_flags = rw_flags;
+        sqe.buf.buf_group = buf_group;
         Entry(sqe)
     }
 }
@@ -170,10 +170,10 @@ opcode! {
         offset: u64 = 0,
         /// specified for write operations, contains a bitwise OR of per-I/O flags,
         /// as described in the `preadv2(2)` man page.
-        rw_flags: types::RwFlags = 0
+        rw_flags: types::RwFlags = types::RwFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_WRITEV;
+    pub const CODE = sys::IoringOp::Writev;
 
     pub fn build(self) -> Entry {
         let Writev {
@@ -185,11 +185,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = iovec as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.rw_flags = rw_flags;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = iovec as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.rw_flags = rw_flags;
         Entry(sqe)
     }
 }
@@ -213,7 +213,7 @@ opcode! {
         flags: types::FsyncFlags = types::FsyncFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_FSYNC;
+    pub const CODE = sys::IoringOp::Fsync;
 
     pub fn build(self) -> Entry {
         let Fsync { fd, flags } = self;
@@ -221,7 +221,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_3.fsync_flags = flags.bits();
+        sqe.op_flags.fsync_flags = sys::IoringFsyncFlags::from_bits_retain(flags.bits());
         Entry(sqe)
     }
 }
@@ -243,10 +243,10 @@ opcode! {
         offset: u64 = 0,
         /// Specified for read operations, contains a bitwise OR of per-I/O flags, as described in
         /// the `preadv2(2)` man page.
-        rw_flags: types::RwFlags = 0
+        rw_flags: types::RwFlags = types::RwFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_READ_FIXED;
+    pub const CODE = sys::IoringOp::ReadFixed;
 
     pub fn build(self) -> Entry {
         let ReadFixed {
@@ -259,12 +259,12 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = buf as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.rw_flags = rw_flags;
-        sqe.__bindgen_anon_4.buf_index = buf_index;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.rw_flags = rw_flags;
+        sqe.buf.buf_index = buf_index;
         Entry(sqe)
     }
 }
@@ -286,10 +286,10 @@ opcode! {
         offset: u64 = 0,
         /// Specified for write operations, contains a bitwise OR of per-I/O flags, as described in
         /// the `pwritev2(2)` man page.
-        rw_flags: types::RwFlags = 0
+        rw_flags: types::RwFlags = types::RwFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_WRITE_FIXED;
+    pub const CODE = sys::IoringOp::WriteFixed;
 
     pub fn build(self) -> Entry {
         let WriteFixed {
@@ -302,12 +302,12 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = buf as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.rw_flags = rw_flags;
-        sqe.__bindgen_anon_4.buf_index = buf_index;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.rw_flags = rw_flags;
+        sqe.buf.buf_index = buf_index;
         Entry(sqe)
     }
 }
@@ -334,7 +334,7 @@ opcode! {
         multi: bool = false
     }
 
-    pub const CODE = sys::IORING_OP_POLL_ADD;
+    pub const CODE = sys::IoringOp::PollAdd;
 
     pub fn build(self) -> Entry {
         let PollAdd { fd, flags, multi } = self;
@@ -343,18 +343,18 @@ opcode! {
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
         if multi {
-            sqe.len = sys::IORING_POLL_ADD_MULTI;
+            sqe.len.poll_flags = sys::IoringPollFlags::ADD_MULTI;
         }
 
         #[cfg(target_endian = "little")] {
-            sqe.__bindgen_anon_3.poll32_events = flags;
+            sqe.op_flags.poll32_events = flags;
         }
 
         #[cfg(target_endian = "big")] {
             let x = flags << 16;
             let y = flags >> 16;
             let flags = x | y;
-            sqe.__bindgen_anon_3.poll32_events = flags;
+            sqe.op_flags.poll32_events = flags;
         }
 
         Entry(sqe)
@@ -372,7 +372,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_POLL_REMOVE;
+    pub const CODE = sys::IoringOp::PollRemove;
 
     pub fn build(self) -> Entry {
         let PollRemove { user_data } = self;
@@ -380,7 +380,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = user_data;
+        sqe.addr_or_splice_off_in.addr.ptr = user_data as _;
         Entry(sqe)
     }
 }
@@ -398,7 +398,7 @@ opcode! {
         flags: u32 = 0
     }
 
-    pub const CODE = sys::IORING_OP_SYNC_FILE_RANGE;
+    pub const CODE = sys::IoringOp::SyncFileRange;
 
     pub fn build(self) -> Entry {
         let SyncFileRange {
@@ -410,9 +410,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.sync_range_flags = flags;
+        sqe.len.len = len as _;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.sync_range_flags = flags;
         Entry(sqe)
     }
 }
@@ -428,10 +428,10 @@ opcode! {
         msg: { *const libc::msghdr },
         ;;
         ioprio: u16 = 0,
-        flags: u32 = 0
+        flags: sys::SendFlags = sys::SendFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_SENDMSG;
+    pub const CODE = sys::IoringOp::Sendmsg;
 
     pub fn build(self) -> Entry {
         let SendMsg { fd, msg, ioprio, flags } = self;
@@ -439,10 +439,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = msg as _;
-        sqe.len = 1;
-        sqe.__bindgen_anon_3.msg_flags = flags;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = msg as _;
+        sqe.len.len = 1;
+        sqe.op_flags.send_flags = flags;
         Entry(sqe)
     }
 }
@@ -457,11 +457,11 @@ opcode! {
         msg: { *mut libc::msghdr },
         ;;
         ioprio: u16 = 0,
-        flags: u32 = 0,
+        flags: sys::RecvFlags = sys::RecvFlags::empty(),
         buf_group: u16 = 0
     }
 
-    pub const CODE = sys::IORING_OP_RECVMSG;
+    pub const CODE = sys::IoringOp::Recvmsg;
 
     pub fn build(self) -> Entry {
         let RecvMsg { fd, msg, ioprio, flags, buf_group } = self;
@@ -469,11 +469,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = msg as _;
-        sqe.len = 1;
-        sqe.__bindgen_anon_3.msg_flags = flags;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = msg as _;
+        sqe.len.len = 1;
+        sqe.op_flags.recv_flags = flags;
+        sqe.buf.buf_group = buf_group;
         Entry(sqe)
     }
 }
@@ -507,11 +507,11 @@ opcode! {
         msg: { *const libc::msghdr },
         buf_group: { u16 },
         ;;
-        ioprio: u16 = 0,
-        flags: u32 = 0
+        ioprio: sys::IoringRecvFlags = sys::IoringRecvFlags::empty(),
+        flags: sys::RecvFlags = sys::RecvFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_RECVMSG;
+    pub const CODE = sys::IoringOp::Recvmsg;
 
     pub fn build(self) -> Entry {
         let RecvMsgMulti { fd, msg, buf_group, ioprio, flags } = self;
@@ -519,12 +519,12 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = msg as _;
-        sqe.len = 1;
-        sqe.__bindgen_anon_3.msg_flags = flags;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
-        sqe.flags |= crate::squeue::Flags::BUFFER_SELECT.bits();
-        sqe.ioprio = ioprio | (sys::IORING_RECV_MULTISHOT as u16);
+        sqe.addr_or_splice_off_in.addr.ptr = msg as _;
+        sqe.len.len = 1;
+        sqe.op_flags.recv_flags = flags;
+        sqe.buf.buf_group = buf_group;
+        sqe.flags |= sys::IoringSqeFlags::BUFFER_SELECT;
+        sqe.ioprio.recv_flags = ioprio | sys::IoringRecvFlags::MULTISHOT;
         Entry(sqe)
     }
 }
@@ -549,7 +549,7 @@ opcode! {
         flags: types::TimeoutFlags = types::TimeoutFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_TIMEOUT;
+    pub const CODE = sys::IoringOp::Timeout;
 
     pub fn build(self) -> Entry {
         let Timeout { timespec, count, flags } = self;
@@ -557,10 +557,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = timespec as _;
-        sqe.len = 1;
-        sqe.__bindgen_anon_1.off = count as _;
-        sqe.__bindgen_anon_3.timeout_flags = flags.bits();
+        sqe.addr_or_splice_off_in.addr.ptr = timespec as _;
+        sqe.len.len = 1;
+        sqe.off_or_addr2.off = count as _;
+        sqe.op_flags.timeout_flags = sys::IoringTimeoutFlags::from_bits_retain(flags.bits());
         Entry(sqe)
     }
 }
@@ -574,7 +574,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_TIMEOUT_REMOVE;
+    pub const CODE = sys::IoringOp::TimeoutRemove;
 
     pub fn build(self) -> Entry {
         let TimeoutRemove { user_data } = self;
@@ -582,7 +582,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = user_data;
+        sqe.addr_or_splice_off_in.user_data.u64_ = user_data;
         Entry(sqe)
     }
 }
@@ -597,7 +597,7 @@ opcode! {
         flags: types::TimeoutFlags = types::TimeoutFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_TIMEOUT_REMOVE;
+    pub const CODE = sys::IoringOp::TimeoutRemove;
 
     pub fn build(self) -> Entry {
         let TimeoutUpdate { user_data, timespec, flags } = self;
@@ -605,9 +605,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_1.off = timespec as _;
-        sqe.__bindgen_anon_2.addr = user_data;
-        sqe.__bindgen_anon_3.timeout_flags = flags.bits() | sys::IORING_TIMEOUT_UPDATE;
+        sqe.off_or_addr2.off = timespec as _;
+        sqe.addr_or_splice_off_in.addr.ptr = user_data as _;
+        sqe.op_flags.timeout_flags = sys::IoringTimeoutFlags::from_bits_retain(flags.bits()) | sys::IoringTimeoutFlags::UPDATE;
         Entry(sqe)
     }
 }
@@ -620,10 +620,10 @@ opcode! {
         addrlen: { *mut libc::socklen_t },
         ;;
         file_index: Option<types::DestinationSlot> = None,
-        flags: i32 = 0
+        flags: sys::SocketFlags = sys::SocketFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_ACCEPT;
+    pub const CODE = sys::IoringOp::Accept;
 
     pub fn build(self) -> Entry {
         let Accept { fd, addr, addrlen, file_index, flags } = self;
@@ -631,11 +631,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = addr as _;
-        sqe.__bindgen_anon_1.addr2 = addrlen as _;
-        sqe.__bindgen_anon_3.accept_flags = flags as _;
+        sqe.addr_or_splice_off_in.addr.ptr = addr as _;
+        sqe.off_or_addr2.addr2.ptr = addrlen as _;
+        sqe.op_flags.accept_flags = flags;
         if let Some(dest) = file_index {
-            sqe.__bindgen_anon_5.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -650,7 +650,7 @@ opcode! {
         // TODO flags
     }
 
-    pub const CODE = sys::IORING_OP_ASYNC_CANCEL;
+    pub const CODE = sys::IoringOp::AsyncCancel;
 
     pub fn build(self) -> Entry {
         let AsyncCancel { user_data } = self;
@@ -658,7 +658,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = user_data;
+        sqe.addr_or_splice_off_in.addr.ptr = user_data as _;
         Entry(sqe)
     }
 }
@@ -673,7 +673,7 @@ opcode! {
         flags: types::TimeoutFlags = types::TimeoutFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_LINK_TIMEOUT;
+    pub const CODE = sys::IoringOp::LinkTimeout;
 
     pub fn build(self) -> Entry {
         let LinkTimeout { timespec, flags } = self;
@@ -681,9 +681,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = timespec as _;
-        sqe.len = 1;
-        sqe.__bindgen_anon_3.timeout_flags = flags.bits();
+        sqe.addr_or_splice_off_in.addr.ptr = timespec as _;
+        sqe.len.len = 1;
+        sqe.op_flags.timeout_flags = sys::IoringTimeoutFlags::from_bits_retain(flags.bits());
         Entry(sqe)
     }
 }
@@ -697,7 +697,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_CONNECT;
+    pub const CODE = sys::IoringOp::Connect;
 
     pub fn build(self) -> Entry {
         let Connect { fd, addr, addrlen } = self;
@@ -705,8 +705,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = addr as _;
-        sqe.__bindgen_anon_1.off = addrlen as _;
+        sqe.addr_or_splice_off_in.addr.ptr = addr as _;
+        sqe.off_or_addr2.off = addrlen as _;
         Entry(sqe)
     }
 }
@@ -723,7 +723,7 @@ opcode! {
         mode: i32 = 0
     }
 
-    pub const CODE = sys::IORING_OP_FALLOCATE;
+    pub const CODE = sys::IoringOp::Fallocate;
 
     pub fn build(self) -> Entry {
         let Fallocate { fd, len, offset, mode } = self;
@@ -731,9 +731,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = len;
-        sqe.len = mode as _;
-        sqe.__bindgen_anon_1.off = offset;
+        sqe.addr_or_splice_off_in.addr.ptr = len as _;
+        sqe.len.len = mode as _;
+        sqe.off_or_addr2.off = offset as _;
         Entry(sqe)
     }
 }
@@ -745,11 +745,11 @@ opcode! {
         pathname: { *const libc::c_char },
         ;;
         file_index: Option<types::DestinationSlot> = None,
-        flags: i32 = 0,
+        flags: rustix::fs::OFlags = rustix::fs::OFlags::empty(),
         mode: libc::mode_t = 0
     }
 
-    pub const CODE = sys::IORING_OP_OPENAT;
+    pub const CODE = sys::IoringOp::Openat;
 
     pub fn build(self) -> Entry {
         let OpenAt { dirfd, pathname, file_index, flags, mode } = self;
@@ -757,11 +757,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
-        sqe.__bindgen_anon_2.addr = pathname as _;
-        sqe.len = mode;
-        sqe.__bindgen_anon_3.open_flags = flags as _;
+        sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
+        sqe.len.len = mode;
+        sqe.op_flags.open_flags = flags;
         if let Some(dest) = file_index {
-            sqe.__bindgen_anon_5.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -776,7 +776,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_CLOSE;
+    pub const CODE = sys::IoringOp::Close;
 
     pub fn build(self) -> Entry {
         let Close { fd } = self;
@@ -787,7 +787,7 @@ opcode! {
             sealed::Target::Fd(fd) => sqe.fd = fd,
             sealed::Target::Fixed(idx) => {
                 sqe.fd = 0;
-                sqe.__bindgen_anon_5.file_index = idx + 1;
+                sqe.splice_fd_in_or_file_index.file_index = idx + 1;
             }
         }
         Entry(sqe)
@@ -805,7 +805,7 @@ opcode! {
         offset: i32 = 0
     }
 
-    pub const CODE = sys::IORING_OP_FILES_UPDATE;
+    pub const CODE = sys::IoringOp::FilesUpdate;
 
     pub fn build(self) -> Entry {
         let FilesUpdate { fds, len, offset } = self;
@@ -813,9 +813,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = fds as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset as _;
+        sqe.addr_or_splice_off_in.addr.ptr = fds as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
         Entry(sqe)
     }
 }
@@ -827,11 +827,11 @@ opcode! {
         pathname: { *const libc::c_char },
         statxbuf: { *mut types::statx },
         ;;
-        flags: i32 = 0,
+        flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty(),
         mask: u32 = 0
     }
 
-    pub const CODE = sys::IORING_OP_STATX;
+    pub const CODE = sys::IoringOp::Statx;
 
     pub fn build(self) -> Entry {
         let Statx {
@@ -842,10 +842,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
-        sqe.__bindgen_anon_2.addr = pathname as _;
-        sqe.len = mask;
-        sqe.__bindgen_anon_1.off = statxbuf as _;
-        sqe.__bindgen_anon_3.statx_flags = flags as _;
+        sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
+        sqe.len.len = mask;
+        sqe.off_or_addr2.off = statxbuf as _;
+        sqe.op_flags.statx_flags = flags;
         Entry(sqe)
     }
 }
@@ -857,7 +857,7 @@ opcode! {
     /// * `addr` contains the buffer in question,
     /// * `len` contains the length of the IO operation,
     ///
-    /// These are non-vectored versions of the `IORING_OP_READV` and `IORING_OP_WRITEV` opcodes.
+    /// These are non-vectored versions of the `IoringOp::READV` and `IoringOp::WRITEV` opcodes.
     /// See also `read(2)` and `write(2)` for the general description of the related system call.
     ///
     /// Available since 5.6.
@@ -873,11 +873,11 @@ opcode! {
         /// like the `read(2)` and `write(2)` system calls.
         offset: u64 = 0,
         ioprio: u16 = 0,
-        rw_flags: types::RwFlags = 0,
+        rw_flags: types::RwFlags = types::RwFlags::empty(),
         buf_group: u16 = 0
     }
 
-    pub const CODE = sys::IORING_OP_READ;
+    pub const CODE = sys::IoringOp::Read;
 
     pub fn build(self) -> Entry {
         let Read {
@@ -890,12 +890,12 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = buf as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.rw_flags = rw_flags;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.rw_flags = rw_flags;
+        sqe.buf.buf_group = buf_group;
         Entry(sqe)
     }
 }
@@ -907,7 +907,7 @@ opcode! {
     /// * `addr` contains the buffer in question,
     /// * `len` contains the length of the IO operation,
     ///
-    /// These are non-vectored versions of the `IORING_OP_READV` and `IORING_OP_WRITEV` opcodes.
+    /// These are non-vectored versions of the `IoringOp::READV` and `IoringOp::WRITEV` opcodes.
     /// See also `read(2)` and `write(2)` for the general description of the related system call.
     ///
     /// Available since 5.6.
@@ -923,10 +923,10 @@ opcode! {
         /// like the `read(2)` and `write(2)` system calls.
         offset: u64 = 0,
         ioprio: u16 = 0,
-        rw_flags: types::RwFlags = 0
+        rw_flags: types::RwFlags = types::RwFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_WRITE;
+    pub const CODE = sys::IoringOp::Write;
 
     pub fn build(self) -> Entry {
         let Write {
@@ -938,11 +938,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = buf as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.rw_flags = rw_flags;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.rw_flags = rw_flags;
         Entry(sqe)
     }
 }
@@ -952,12 +952,12 @@ opcode! {
     pub struct Fadvise {
         fd: { impl sealed::UseFixed },
         len: { libc::off_t },
-        advice: { i32 },
+        advice: { rustix::fs::Advice },
         ;;
         offset: u64 = 0,
     }
 
-    pub const CODE = sys::IORING_OP_FADVISE;
+    pub const CODE = sys::IoringOp::Fadvise;
 
     pub fn build(self) -> Entry {
         let Fadvise { fd, len, advice, offset } = self;
@@ -965,9 +965,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.len = len as _;
-        sqe.__bindgen_anon_1.off = offset;
-        sqe.__bindgen_anon_3.fadvise_advice = advice as _;
+        sqe.len.len = len as _;
+        sqe.off_or_addr2.off = offset as _;
+        sqe.op_flags.fadvise_advice = advice;
         Entry(sqe)
     }
 }
@@ -977,11 +977,11 @@ opcode! {
     pub struct Madvise {
         addr: { *const libc::c_void },
         len: { libc::off_t },
-        advice: { i32 },
+        advice: { rustix::fs::Advice },
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_MADVISE;
+    pub const CODE = sys::IoringOp::Madvise;
 
     pub fn build(self) -> Entry {
         let Madvise { addr, len, advice } = self;
@@ -989,9 +989,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.__bindgen_anon_2.addr = addr as _;
-        sqe.len = len as _;
-        sqe.__bindgen_anon_3.fadvise_advice = advice as _;
+        sqe.addr_or_splice_off_in.addr.ptr = addr as _;
+        sqe.len.len = len as _;
+        sqe.op_flags.fadvise_advice = advice as _;
         Entry(sqe)
     }
 }
@@ -1003,17 +1003,17 @@ opcode! {
         buf: { *const u8 },
         len: { u32 },
         ;;
-        flags: i32 = 0,
+        flags: sys::SendFlags = sys::SendFlags::empty()
 
         /// Set the destination address, for sending from an unconnected socket.
         ///
         /// When set, `dest_addr_len` must be set as well.
         /// See also `man 3 io_uring_prep_send_set_addr`.
-        dest_addr: *const libc::sockaddr = core::ptr::null(),
-        dest_addr_len: libc::socklen_t = 0,
+        dest_addr: *const rustix::net::addr::SocketAddrStorage = core::ptr::null(),
+        dest_addr_len: rustix::net::addr::SocketAddrLen = 0,
     }
 
-    pub const CODE = sys::IORING_OP_SEND;
+    pub const CODE = sys::IoringOp::Send;
 
     pub fn build(self) -> Entry {
         let Send { fd, buf, len, flags, dest_addr, dest_addr_len } = self;
@@ -1021,11 +1021,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = buf as _;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
         sqe.__bindgen_anon_1.addr2 = dest_addr as _;
         sqe.__bindgen_anon_5.__bindgen_anon_1.addr_len = dest_addr_len as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
+        sqe.len.len = len;
+        sqe.op_flags.send_flags = flags;
         Entry(sqe)
     }
 }
@@ -1037,11 +1037,11 @@ opcode! {
         buf: { *mut u8 },
         len: { u32 },
         ;;
-        flags: i32 = 0,
+        flags: sys::RecvFlags = sys::RecvFlags::empty(),
         buf_group: u16 = 0
     }
 
-    pub const CODE = sys::IORING_OP_RECV;
+    pub const CODE = sys::IoringOp::Recv;
 
     pub fn build(self) -> Entry {
         let Recv { fd, buf, len, flags, buf_group } = self;
@@ -1049,10 +1049,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = buf as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
+        sqe.len.len = len;
+        sqe.op_flags.recv_flags = flags;
+        sqe.buf.buf_group = buf_group;
         Entry(sqe)
     }
 }
@@ -1077,10 +1077,10 @@ opcode! {
         fd: { impl sealed::UseFixed },
         buf_group: { u16 },
         ;;
-        flags: i32 = 0,
+        flags: sys::RecvFlags = sys::RecvFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_RECV;
+    pub const CODE = sys::IoringOp::Recv;
 
     pub fn build(self) -> Entry {
         let RecvMulti { fd, buf_group, flags } = self;
@@ -1088,10 +1088,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
-        sqe.flags |= crate::squeue::Flags::BUFFER_SELECT.bits();
-        sqe.ioprio = sys::IORING_RECV_MULTISHOT as _;
+        sqe.op_flags.recv_flags = flags;
+        sqe.buf.buf_group = buf_group;
+        sqe.flags |= sys::IoringSqeFlags::BUFFER_SELECT;
+        sqe.ioprio.recv_flags = sys::IoringRecvFlags::MULTISHOT;
         Entry(sqe)
     }
 }
@@ -1106,7 +1106,7 @@ opcode! {
         file_index: Option<types::DestinationSlot> = None,
     }
 
-    pub const CODE = sys::IORING_OP_OPENAT2;
+    pub const CODE = sys::IoringOp::Openat2;
 
     pub fn build(self) -> Entry {
         let OpenAt2 { dirfd, pathname, how, file_index } = self;
@@ -1114,11 +1114,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
-        sqe.__bindgen_anon_2.addr = pathname as _;
-        sqe.len = mem::size_of::<sys::open_how>() as _;
-        sqe.__bindgen_anon_1.off = how as _;
+        sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
+        sqe.len.len = mem::size_of::<sys::open_how>() as _;
+        sqe.off_or_addr2.off = how as _;
         if let Some(dest) = file_index {
-            sqe.__bindgen_anon_5.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -1134,7 +1134,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_EPOLL_CTL;
+    pub const CODE = sys::IoringOp::EpollCtl;
 
     pub fn build(self) -> Entry {
         let EpollCtl { epfd, fd, op, ev } = self;
@@ -1142,9 +1142,9 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = epfd);
-        sqe.__bindgen_anon_2.addr = ev as _;
-        sqe.len = op as _;
-        sqe.__bindgen_anon_1.off = fd as _;
+        sqe.addr_or_splice_off_in.addr.ptr = ev as _;
+        sqe.len.len = op as _;
+        sqe.off_or_addr2.off = fd as _;
         Entry(sqe)
     }
 }
@@ -1164,10 +1164,10 @@ opcode! {
         len: { u32 },
         ;;
         /// see man `splice(2)` for description of flags.
-        flags: u32 = 0
+        flags: sys::SpliceFlags = sys::SpliceFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_SPLICE;
+    pub const CODE = sys::IoringOp::Splice;
 
     pub fn build(self) -> Entry {
         let Splice { fd_in, off_in, fd_out, off_out, len, mut flags } = self;
@@ -1175,19 +1175,19 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd_out);
-        sqe.len = len;
-        sqe.__bindgen_anon_1.off = off_out as _;
+        sqe.len.len = len;
+        sqe.off_or_addr2.off = off_out as _;
 
-        sqe.__bindgen_anon_5.splice_fd_in = match fd_in {
+        sqe.splice_fd_in_or_file_index.splice_fd_in = match fd_in {
             sealed::Target::Fd(fd) => fd,
             sealed::Target::Fixed(idx) => {
-                flags |= sys::SPLICE_F_FD_IN_FIXED;
+                flags |= sys::SpliceFlags::FD_IN_FIXED;
                 idx as _
             }
         };
 
-        sqe.__bindgen_anon_2.splice_off_in = off_in as _;
-        sqe.__bindgen_anon_3.splice_flags = flags;
+        sqe.addr_or_splice_off_in.splice_off_in = off_in as _;
+        sqe.op_flags.splice_flags = flags;
         Entry(sqe)
     }
 }
@@ -1205,7 +1205,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_PROVIDE_BUFFERS;
+    pub const CODE = sys::IoringOp::ProvideBuffers;
 
     pub fn build(self) -> Entry {
         let ProvideBuffers { addr, len, nbufs, bgid, bid } = self;
@@ -1213,10 +1213,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = nbufs as _;
-        sqe.__bindgen_anon_2.addr = addr as _;
-        sqe.len = len as _;
-        sqe.__bindgen_anon_1.off = bid as _;
-        sqe.__bindgen_anon_4.buf_group = bgid;
+        sqe.addr_or_splice_off_in.addr.ptr = addr as _;
+        sqe.len.len = len as _;
+        sqe.off_or_addr2.off = bid as _;
+        sqe.buf.buf_group = bgid;
         Entry(sqe)
     }
 }
@@ -1230,7 +1230,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_REMOVE_BUFFERS;
+    pub const CODE = sys::IoringOp::RemoveBuffers;
 
     pub fn build(self) -> Entry {
         let RemoveBuffers { nbufs, bgid } = self;
@@ -1238,7 +1238,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = nbufs as _;
-        sqe.__bindgen_anon_4.buf_group = bgid;
+        sqe.buf.buf_group = bgid;
         Entry(sqe)
     }
 }
@@ -1252,10 +1252,10 @@ opcode! {
         fd_out: { impl sealed::UseFixed },
         len: { u32 }
         ;;
-        flags: u32 = 0
+        flags: sys::SpliceFlags = sys::SpliceFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_TEE;
+    pub const CODE = sys::IoringOp::Tee;
 
     pub fn build(self) -> Entry {
         let Tee { fd_in, fd_out, len, mut flags } = self;
@@ -1264,17 +1264,17 @@ opcode! {
         sqe.opcode = Self::CODE;
 
         assign_fd!(sqe.fd = fd_out);
-        sqe.len = len;
+        sqe.len.len = len;
 
-        sqe.__bindgen_anon_5.splice_fd_in = match fd_in {
+        sqe.splice_fd_in_or_file_index.splice_fd_in = match fd_in {
             sealed::Target::Fd(fd) => fd,
             sealed::Target::Fixed(idx) => {
-                flags |= sys::SPLICE_F_FD_IN_FIXED;
+                flags |= sys::SpliceFlags::FD_IN_FIXED;
                 idx as _
             }
         };
 
-        sqe.__bindgen_anon_3.splice_flags = flags;
+        sqe.op_flags.splice_flags = flags;
 
         Entry(sqe)
     }
@@ -1291,7 +1291,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_SHUTDOWN;
+    pub const CODE = sys::IoringOp::Shutdown;
 
     pub fn build(self) -> Entry {
         let Shutdown { fd, how } = self;
@@ -1299,7 +1299,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.len = how as _;
+        sqe.len.len = how as _;
         Entry(sqe)
     }
 }
@@ -1313,10 +1313,10 @@ opcode! {
         newdirfd: { impl sealed::UseFd },
         newpath: { *const libc::c_char },
         ;;
-        flags: u32 = 0
+        flags: rustix::fs::RenameFlags = rustix::fs::RenameFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_RENAMEAT;
+    pub const CODE = sys::IoringOp::Renameat;
 
     pub fn build(self) -> Entry {
         let RenameAt {
@@ -1328,10 +1328,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = olddirfd;
-        sqe.__bindgen_anon_2.addr = oldpath as _;
-        sqe.len = newdirfd as _;
-        sqe.__bindgen_anon_1.off = newpath as _;
-        sqe.__bindgen_anon_3.rename_flags = flags;
+        sqe.addr_or_splice_off_in.addr.ptr = oldpath as _;
+        sqe.len.len = newdirfd as _;
+        sqe.off_or_addr2.off = newpath as _;
+        sqe.op_flags.rename_flags = flags;
         Entry(sqe)
     }
 }
@@ -1343,10 +1343,10 @@ opcode! {
         dirfd: { impl sealed::UseFd },
         pathname: { *const libc::c_char },
         ;;
-        flags: i32 = 0
+        flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_UNLINKAT;
+    pub const CODE = sys::IoringOp::Unlinkat;
 
     pub fn build(self) -> Entry {
         let UnlinkAt { dirfd, pathname, flags } = self;
@@ -1354,8 +1354,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
-        sqe.__bindgen_anon_2.addr = pathname as _;
-        sqe.__bindgen_anon_3.unlink_flags = flags as _;
+        sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
+        sqe.op_flags.unlink_flags = flags;
         Entry(sqe)
     }
 }
@@ -1371,7 +1371,7 @@ opcode! {
         mode: libc::mode_t = 0
     }
 
-    pub const CODE = sys::IORING_OP_MKDIRAT;
+    pub const CODE = sys::IoringOp::Mkdirat;
 
     pub fn build(self) -> Entry {
         let MkDirAt { dirfd, pathname, mode } = self;
@@ -1379,8 +1379,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
-        sqe.__bindgen_anon_2.addr = pathname as _;
-        sqe.len = mode;
+        sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
+        sqe.len.len = mode;
         Entry(sqe)
     }
 }
@@ -1394,7 +1394,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_SYMLINKAT;
+    pub const CODE = sys::IoringOp::Symlinkat;
 
     pub fn build(self) -> Entry {
         let SymlinkAt { newdirfd, target, linkpath } = self;
@@ -1402,8 +1402,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = newdirfd;
-        sqe.__bindgen_anon_2.addr = target as _;
-        sqe.__bindgen_anon_1.addr2 = linkpath as _;
+        sqe.addr_or_splice_off_in.addr.ptr = target as _;
+        sqe.off_or_addr2.addr2.ptr = linkpath as _;
         Entry(sqe)
     }
 }
@@ -1416,10 +1416,10 @@ opcode! {
         newdirfd: { impl sealed::UseFd },
         newpath: { *const libc::c_char },
         ;;
-        flags: i32 = 0
+        flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_LINKAT;
+    pub const CODE = sys::IoringOp::Linkat;
 
     pub fn build(self) -> Entry {
         let LinkAt { olddirfd, oldpath, newdirfd, newpath, flags } = self;
@@ -1427,10 +1427,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = olddirfd as _;
-        sqe.__bindgen_anon_2.addr = oldpath as _;
-        sqe.len = newdirfd as _;
-        sqe.__bindgen_anon_1.addr2 = newpath as _;
-        sqe.__bindgen_anon_3.hardlink_flags = flags as _;
+        sqe.addr_or_splice_off_in.addr.ptr = oldpath as _;
+        sqe.len.len = newdirfd as _;
+        sqe.off_or_addr2.addr2.ptr = newpath as _;
+        sqe.op_flags.hardlink_flags = flags;
         Entry(sqe)
     }
 }
@@ -1445,24 +1445,24 @@ opcode! {
         user_data: { u64 },
         user_flags: { Option<u32> },
         ;;
-        opcode_flags: u32 = 0
+        opcode_flags: sys::IoringMsgringFlags = sys::IoringMsgringFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_MSG_RING;
+    pub const CODE = sys::IoringOp::MsgRing;
 
     pub fn build(self) -> Entry {
         let MsgRingData { ring_fd, result, user_data, user_flags, opcode_flags } = self;
 
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
-        sqe.__bindgen_anon_2.addr = sys::IORING_MSG_DATA.into();
+        sqe.addr_or_splice_off_in.msgring_cmd = sys::IoringMsgringCmds::Data;
         sqe.fd = ring_fd;
-        sqe.len = result as u32;
-        sqe.__bindgen_anon_1.off = user_data;
-        sqe.__bindgen_anon_3.msg_ring_flags = opcode_flags;
+        sqe.len.len = result as u32;
+        sqe.off_or_addr2.user_data.u64_ = user_data;
+        sqe.op_flags.msg_ring_flags = opcode_flags;
         if let Some(flags) = user_flags {
-            sqe.__bindgen_anon_5.file_index = flags;
-            unsafe {sqe.__bindgen_anon_3.msg_ring_flags |= sys::IORING_MSG_RING_FLAGS_PASS};
+            sqe.splice_fd_in_or_file_index.file_index = flags;
+            unsafe {sqe.op_flags.msg_ring_flags |= sys::IoringMsgringFlags::FLAGS_PASS};
         }
         Entry(sqe)
     }
@@ -1479,7 +1479,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_ASYNC_CANCEL;
+    pub const CODE = sys::IoringOp::AsyncCancel;
 
     pub fn build(self) -> Entry {
         let AsyncCancel2 { builder } = self;
@@ -1487,8 +1487,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = builder.to_fd();
-        sqe.__bindgen_anon_2.addr = builder.user_data.unwrap_or(0);
-        sqe.__bindgen_anon_3.cancel_flags = builder.flags.bits();
+        sqe.addr_or_splice_off_in.user_data.u64_ = builder.user_data.unwrap_or(0);
+        sqe.op_flags.cancel_flags = sys::IoringAsyncCancelFlags::from_bits_retain(builder.flags.bits());
         Entry(sqe)
     }
 }
@@ -1506,7 +1506,7 @@ opcode! {
         cmd: [u8; 16] = [0u8; 16]
     }
 
-    pub const CODE = sys::IORING_OP_URING_CMD;
+    pub const CODE = sys::IoringOp::UringCmd;
 
     pub fn build(self) -> Entry {
         let UringCmd16 { fd, cmd_op, cmd, buf_index } = self;
@@ -1514,8 +1514,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_1.__bindgen_anon_1.cmd_op = cmd_op;
-        unsafe { *sqe.__bindgen_anon_6.cmd.as_mut().as_mut_ptr().cast::<[u8; 16]>() = cmd };
+        sqe.off_or_addr2.cmd_op.cmd_op = cmd_op;
+        unsafe { *sqe.addr3_or_cmd.cmd.as_mut().as_mut_ptr().cast::<[u8; 16]>() = cmd };
         if let Some(buf_index) = buf_index {
             sqe.__bindgen_anon_4.buf_index = buf_index;
             unsafe {
@@ -1539,7 +1539,7 @@ opcode! {
         cmd: [u8; 80] = [0u8; 80]
     }
 
-    pub const CODE = sys::IORING_OP_URING_CMD;
+    pub const CODE = sys::IoringOp::UringCmd;
 
     pub fn build(self) -> Entry128 {
         let UringCmd80 { fd, cmd_op, cmd, buf_index } = self;
@@ -1550,8 +1550,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_1.__bindgen_anon_1.cmd_op = cmd_op;
-        unsafe { *sqe.__bindgen_anon_6.cmd.as_mut().as_mut_ptr().cast::<[u8; 16]>() = cmd1 };
+        sqe.off_or_addr2.cmd_op.cmd_op = cmd_op;
+        unsafe { *sqe.addr3_or_cmd.cmd.as_mut().as_mut_ptr().cast::<[u8; 16]>() = cmd1 };
         if let Some(buf_index) = buf_index {
             sqe.__bindgen_anon_4.buf_index = buf_index;
             unsafe {
@@ -1578,10 +1578,10 @@ opcode! {
         protocol: { i32 },
         ;;
         file_index: Option<types::DestinationSlot> = None,
-        flags: types::RwFlags = 0,
+        flags: types::RwFlags = types::RwFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_SOCKET;
+    pub const CODE = sys::IoringOp::Socket;
 
     pub fn build(self) -> Entry {
         let Socket { domain, socket_type, protocol, file_index, flags } = self;
@@ -1589,11 +1589,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = domain as _;
-        sqe.__bindgen_anon_1.off = socket_type as _;
-        sqe.len = protocol as _;
-        sqe.__bindgen_anon_3.rw_flags = flags;
+        sqe.off_or_addr2.off = socket_type as _;
+        sqe.len.len = protocol as _;
+        sqe.op_flags.rw_flags = flags;
         if let Some(dest) = file_index {
-            sqe.__bindgen_anon_5.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -1609,10 +1609,10 @@ opcode! {
         fd: { impl sealed::UseFixed },
         ;;
         allocate_file_index: bool = false,
-        flags: i32 = 0
+        flags: sys::SocketFlags = sys::SocketFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_ACCEPT;
+    pub const CODE = sys::IoringOp::Accept;
 
     pub fn build(self) -> Entry {
         let AcceptMulti { fd, allocate_file_index, flags } = self;
@@ -1620,12 +1620,12 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = sys::IORING_ACCEPT_MULTISHOT as u16;
+        sqe.ioprio.accept_flags = sys::IoringAcceptFlags::MULTISHOT;
         // No out SockAddr is passed for the multishot accept case.
         // The user should perform a syscall to get any resulting connection's remote address.
-        sqe.__bindgen_anon_3.accept_flags = flags as _;
+        sqe.op_flags.accept_flags = flags;
         if allocate_file_index {
-            sqe.__bindgen_anon_5.file_index = sys::IORING_FILE_INDEX_ALLOC as u32;
+            sqe.splice_fd_in_or_file_index.file_index = sys::IORING_FILE_INDEX_ALLOC as u32;
         }
         Entry(sqe)
     }
@@ -1641,22 +1641,22 @@ opcode! {
         dest_slot_index: { types::DestinationSlot },
         user_data: { u64 },
         ;;
-        opcode_flags: u32 = 0
+        opcode_flags: sys::IoringMsgringFlags = sys::IoringMsgringFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_MSG_RING;
+    pub const CODE = sys::IoringOp::MsgRing;
 
     pub fn build(self) -> Entry {
         let MsgRingSendFd { ring_fd, fixed_slot_src, dest_slot_index, user_data, opcode_flags } = self;
 
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
-        sqe.__bindgen_anon_2.addr = sys::IORING_MSG_SEND_FD.into();
+        sqe.addr_or_splice_off_in.msgring_cmd = sys::IoringMsgringCmds::SendFd;
         sqe.fd = ring_fd;
-        sqe.__bindgen_anon_1.off = user_data;
-        unsafe { sqe.__bindgen_anon_6.__bindgen_anon_1.as_mut().addr3 = fixed_slot_src.0 as u64 };
-        sqe.__bindgen_anon_5.file_index = dest_slot_index.kernel_index_arg();
-        sqe.__bindgen_anon_3.msg_ring_flags = opcode_flags;
+        sqe.off_or_addr2.off = user_data;
+        sqe.addr3_or_cmd.addr3.addr3 = fixed_slot_src.0 as u64;
+        sqe.splice_fd_in_or_file_index.file_index = dest_slot_index.kernel_index_arg();
+        sqe.op_flags.msg_ring_flags = opcode_flags;
         Entry(sqe)
     }
 }
@@ -1691,11 +1691,11 @@ opcode! {
         buf_index: Option<u16> = None,
         dest_addr: *const libc::sockaddr = core::ptr::null(),
         dest_addr_len: libc::socklen_t = 0,
-        flags: i32 = 0,
-        zc_flags: u16 = 0,
+        flags: sys::SendFlags = sys::SendFlags::empty(),
+        zc_flags: sys::IoringSendFlags = sys::IoringSendFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_SEND_ZC;
+    pub const CODE = sys::IoringOp::SendZc;
 
     pub fn build(self) -> Entry {
         let SendZc { fd, buf, len, buf_index, dest_addr, dest_addr_len, flags, zc_flags } = self;
@@ -1703,16 +1703,16 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_2.addr = buf as _;
-        sqe.len = len;
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
-        sqe.ioprio = zc_flags;
+        sqe.addr_or_splice_off_in.addr.ptr = buf as _;
+        sqe.len.len = len;
+        sqe.op_flags.send_flags = flags;
+        sqe.ioprio.send_flags = zc_flags;
         if let Some(buf_index) = buf_index {
-            sqe.__bindgen_anon_4.buf_index = buf_index;
-            sqe.ioprio |= sys::IORING_RECVSEND_FIXED_BUF as u16;
+            sqe.buf.buf_index = buf_index;
+            unsafe { sqe.ioprio.send_flags |= sys::IoringSendFlags::FIXED_BUF; }
         }
-        sqe.__bindgen_anon_1.addr2 = dest_addr as _;
-        sqe.__bindgen_anon_5.__bindgen_anon_1.addr_len = dest_addr_len as _;
+        sqe.off_or_addr2.addr2.ptr = dest_addr as _;
+        sqe.splice_fd_in_or_file_index.addr_len.addr_len = dest_addr_len as _;
         Entry(sqe)
     }
 }
@@ -1730,10 +1730,10 @@ opcode! {
         msg: { *const libc::msghdr },
         ;;
         ioprio: u16 = 0,
-        flags: u32 = 0
+        flags: sys::SendFlags = sys::SendFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_SENDMSG_ZC;
+    pub const CODE = sys::IoringOp::SendmsgZc;
 
     pub fn build(self) -> Entry {
         let SendMsgZc { fd, msg, ioprio, flags } = self;
@@ -1741,10 +1741,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.ioprio = ioprio;
-        sqe.__bindgen_anon_2.addr = msg as _;
-        sqe.len = 1;
-        sqe.__bindgen_anon_3.msg_flags = flags;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.addr_or_splice_off_in.addr.ptr = msg as _;
+        sqe.len.len = 1;
+        sqe.op_flags.send_flags = flags;
         Entry(sqe)
     }
 }

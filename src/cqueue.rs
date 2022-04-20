@@ -33,7 +33,7 @@ pub struct CompletionQueue<'a, E: EntryMarker = Entry> {
 ///
 /// This is implemented for [`Entry`] and [`Entry32`].
 pub trait EntryMarker: Clone + Debug + Into<Entry> + private::Sealed {
-    const BUILD_FLAGS: u32;
+    const BUILD_FLAGS: sys::IoringSetupFlags;
 }
 
 /// A 16-byte completion queue entry (CQE), representing a complete I/O operation.
@@ -112,8 +112,10 @@ impl<E: EntryMarker> CompletionQueue<'_, E> {
     /// `false`.
     pub fn eventfd_disabled(&self) -> bool {
         unsafe {
-            (*self.queue.flags).load(atomic::Ordering::Acquire) & sys::IORING_CQ_EVENTFD_DISABLED
-                != 0
+            sys::IoringCqFlags::from_bits_retain(
+                (*self.queue.flags).load(atomic::Ordering::Acquire),
+            )
+            .contains(sys::IoringCqFlags::EVENTFD_DISABLED)
         }
     }
 
@@ -203,7 +205,14 @@ impl Entry {
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
     pub fn user_data(&self) -> u64 {
-        self.0.user_data
+        self.0.user_data.u64_()
+    }
+
+    /// The user data of the request, as set by
+    /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
+    #[inline]
+    pub fn user_data_ptr(&self) -> *mut libc::c_void {
+        self.0.user_data.ptr()
     }
 
     /// Metadata related to the operation.
@@ -212,7 +221,7 @@ impl Entry {
     /// - Storing the selected buffer ID, if one was selected. See
     ///   [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
     #[inline]
-    pub fn flags(&self) -> u32 {
+    pub fn flags(&self) -> sys::IoringCqeFlags {
         self.0.flags
     }
 }
@@ -220,7 +229,7 @@ impl Entry {
 impl private::Sealed for Entry {}
 
 impl EntryMarker for Entry {
-    const BUILD_FLAGS: u32 = 0;
+    const BUILD_FLAGS: sys::IoringSetupFlags = sys::IoringSetupFlags::empty();
 }
 
 impl Clone for Entry {
@@ -252,7 +261,14 @@ impl Entry32 {
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
     pub fn user_data(&self) -> u64 {
-        self.0 .0.user_data
+        self.0 .0.user_data.u64_()
+    }
+
+    /// The user data of the request, as set by
+    /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
+    #[inline]
+    pub fn user_data_ptr(&self) -> *mut libc::c_void {
+        self.0 .0.user_data.ptr()
     }
 
     /// Metadata related to the operation.
@@ -261,7 +277,7 @@ impl Entry32 {
     /// - Storing the selected buffer ID, if one was selected. See
     ///   [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
     #[inline]
-    pub fn flags(&self) -> u32 {
+    pub fn flags(&self) -> sys::IoringCqeFlags {
         self.0 .0.flags
     }
 
@@ -275,7 +291,7 @@ impl Entry32 {
 impl private::Sealed for Entry32 {}
 
 impl EntryMarker for Entry32 {
-    const BUILD_FLAGS: u32 = sys::IORING_SETUP_CQE32;
+    const BUILD_FLAGS: sys::IoringSetupFlags = sys::IoringSetupFlags::CQE32;
 }
 
 impl From<Entry32> for Entry {
@@ -300,9 +316,9 @@ impl Debug for Entry32 {
 /// This corresponds to the `IORING_CQE_F_BUFFER` flag (and related bit-shifting),
 /// and it signals to the consumer which provided contains the result of this
 /// operation.
-pub fn buffer_select(flags: u32) -> Option<u16> {
-    if flags & sys::IORING_CQE_F_BUFFER != 0 {
-        let id = flags >> sys::IORING_CQE_BUFFER_SHIFT;
+pub fn buffer_select(flags: sys::IoringCqeFlags) -> Option<u16> {
+    if flags.contains(sys::IoringCqeFlags::BUFFER) {
+        let id = flags.bits() >> sys::IORING_CQE_BUFFER_SHIFT;
 
         // FIXME
         //
@@ -319,8 +335,8 @@ pub fn buffer_select(flags: u32) -> Option<u16> {
 /// This corresponds to the `IORING_CQE_F_MORE` flag, and it signals to
 /// the consumer that it should expect further CQE entries after this one,
 /// still from the same original SQE request (e.g. for multishot operations).
-pub fn more(flags: u32) -> bool {
-    flags & sys::IORING_CQE_F_MORE != 0
+pub fn more(flags: sys::IoringCqeFlags) -> bool {
+    flags.contains(sys::IoringCqeFlags::MORE)
 }
 
 /// Return whether socket has more data ready to read.
@@ -330,8 +346,8 @@ pub fn more(flags: u32) -> bool {
 ///
 /// The io_uring documentation says recv, recv-multishot, recvmsg, and recvmsg-multishot
 /// can provide this bit in their respective CQE.
-pub fn sock_nonempty(flags: u32) -> bool {
-    flags & sys::IORING_CQE_F_SOCK_NONEMPTY != 0
+pub fn sock_nonempty(flags: sys::IoringCqeFlags) -> bool {
+    flags.contains(sys::IoringCqeFlags::SOCK_NONEMPTY)
 }
 
 /// Returns whether this completion event is a notification.

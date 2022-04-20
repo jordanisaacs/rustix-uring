@@ -945,7 +945,7 @@ pub fn test_tcp_buffer_select<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     match bid {
         0 => assert_eq!(&buf0[..256], &input[1024..]),
         1 => assert_eq!(&buf1[..256], &input[1024..]),
-        _ => panic!("{}", cqe.flags()),
+        _ => panic!("{:?}", cqe.flags()),
     }
 
     // remove one remaining buf
@@ -1499,7 +1499,7 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data(), 42);
     assert!(cqes[0].result() >= 0);
     assert!(cqes[0].result() != plain_fd);
-    assert_eq!(cqes[0].flags(), 0);
+    assert_eq!(cqes[0].flags(), Default::default());
 
     // Close both sockets, to avoid leaking FDs.
     let io_uring_socket = unsafe { Socket::from_raw_fd(cqes[0].result()) };
@@ -1533,7 +1533,7 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data(), 55);
     assert_eq!(cqes[0].result(), 0);
-    assert_eq!(cqes[0].flags(), 0);
+    assert_eq!(cqes[0].flags(), Default::default());
 
     // If the fixed-socket operation worked properly, this must not fail.
     ring.submitter().unregister_files().unwrap();
@@ -1582,7 +1582,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), 0);
+        assert_eq!(cqes[0].flags(), Default::default());
     }
 
     // This structure is actually only used for input arguments to the kernel
@@ -1733,12 +1733,12 @@ pub fn test_udp_recvmsg_multishot_trunc<S: squeue::EntryMarker, C: cqueue::Entry
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), 0);
+        assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
     }
 
     // This structure is actually only used for input arguments to the kernel
     // (and only name length and control length are actually relevant).
-    let mut msghdr: libc::msghdr = unsafe { mem::zeroed() };
+    let mut msghdr: io_uring::types::msghdr = unsafe { mem::zeroed() };
     msghdr.msg_namelen = 4;
 
     let recvmsg_e = opcode::RecvMsgMulti::new(
@@ -1746,7 +1746,7 @@ pub fn test_udp_recvmsg_multishot_trunc<S: squeue::EntryMarker, C: cqueue::Entry
         &msghdr as *const _,
         BUF_GROUP,
     )
-    .flags(libc::MSG_TRUNC as u32)
+    .flags(rustix::net::RecvFlags::TRUNC)
     .build()
     .user_data(77)
     .into();
@@ -1756,9 +1756,9 @@ pub fn test_udp_recvmsg_multishot_trunc<S: squeue::EntryMarker, C: cqueue::Entry
     let client_socket: socket2::Socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap().into();
 
     let data = [io::IoSlice::new(DATA)];
-    let mut msghdr1: libc::msghdr = unsafe { mem::zeroed() };
+    let mut msghdr1: io_uring::types::msghdr = unsafe { mem::zeroed() };
     msghdr1.msg_name = server_addr.as_ptr() as *const _ as *mut _;
-    msghdr1.msg_namelen = server_addr.len();
+    msghdr1.msg_namelen = server_addr.len() as _;
     msghdr1.msg_iov = data.as_ptr() as *const _ as *mut _;
     msghdr1.msg_iovlen = 1;
 
@@ -1944,7 +1944,7 @@ pub fn test_udp_sendzc_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), 0);
+        assert_eq!(cqes[0].flags(), Default::default());
     }
 
     let recvmsg_e = opcode::RecvMulti::new(Fd(server_socket.as_raw_fd()), BUF_GROUP)

@@ -48,7 +48,7 @@ use std::marker::PhantomData;
 use std::num::NonZeroU32;
 use std::os::unix::io::RawFd;
 
-pub use sys::__kernel_rwf_t as RwFlags;
+pub use rustix::io::ReadWriteFlags as RwFlags;
 
 /// Opaque types, you should use [`statx`](struct@libc::statx) instead.
 #[repr(C)]
@@ -90,15 +90,15 @@ bitflags! {
     /// [`types::TimeoutFlags::ETIME_SUCCESS`].
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub struct TimeoutFlags: u32 {
-        const ABS = sys::IORING_TIMEOUT_ABS;
+        const ABS = sys::IoringTimeoutFlags::ABS.bits();
 
-        const BOOTTIME = sys::IORING_TIMEOUT_BOOTTIME;
+        const BOOTTIME = sys::IoringTimeoutFlags::BOOTTIME.bits();
 
-        const REALTIME = sys::IORING_TIMEOUT_REALTIME;
+        const REALTIME = sys::IoringTimeoutFlags::REALTIME.bits();
 
-        const LINK_TIMEOUT_UPDATE = sys::IORING_LINK_TIMEOUT_UPDATE;
+        const LINK_TIMEOUT_UPDATE = sys::IoringTimeoutFlags::UPDATE.bits();
 
-        const ETIME_SUCCESS = sys::IORING_TIMEOUT_ETIME_SUCCESS;
+        const ETIME_SUCCESS = sys::IoringTimeoutFlags::ETIME_SUCCESS.bits();
     }
 }
 
@@ -106,7 +106,7 @@ bitflags! {
     /// Options for [`Fsync`](super::Fsync).
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub struct FsyncFlags: u32 {
-        const DATASYNC = sys::IORING_FSYNC_DATASYNC;
+        const DATASYNC = sys::IoringFsyncFlags::DATASYNC.bits();
     }
 }
 
@@ -119,26 +119,26 @@ bitflags! {
         /// than just canceling the first one found.
         ///
         /// Available since 5.19.
-        const ALL = sys::IORING_ASYNC_CANCEL_ALL;
+        const ALL = sys::IoringAsyncCancelFlags::ALL.bits();
 
         /// Match based on the file descriptor used in the original
         /// request rather than the user_data.
         ///
         /// Available since 5.19.
-        const FD = sys::IORING_ASYNC_CANCEL_FD;
+        const FD = sys::IoringAsyncCancelFlags::FD.bits();
 
         /// Match any request in the ring, regardless of user_data or
         /// file descriptor.  Can be used to cancel any pending
         /// request in the ring.
         ///
         /// Available since 5.19.
-        const ANY = sys::IORING_ASYNC_CANCEL_ANY;
+        const ANY = sys::IoringAsyncCancelFlags::ANY.bits();
 
         /// Match based on the fixed file descriptor used in the original
         /// request rather than the user_data.
         ///
         /// Available since 6.0
-        const FD_FIXED = sys::IORING_ASYNC_CANCEL_FD_FIXED;
+        const FD_FIXED = sys::IoringAsyncCancelFlags::FD_FIXED.bits();
     }
 }
 
@@ -153,7 +153,7 @@ impl OpenHow {
         OpenHow(sys::open_how {
             flags: 0,
             mode: 0,
-            resolve: 0,
+            resolve: rustix::fs::ResolveFlags::empty(),
         })
     }
 
@@ -167,20 +167,26 @@ impl OpenHow {
         self
     }
 
-    pub const fn resolve(mut self, resolve: u64) -> Self {
+    pub const fn resolve(mut self, resolve: rustix::fs::ResolveFlags) -> Self {
         self.0.resolve = resolve;
         self
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct Timespec(pub(crate) sys::__kernel_timespec);
+pub struct Timespec(pub(crate) rustix::io_uring::Timespec);
+
+impl Default for Timespec {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
 
 impl Timespec {
     #[inline]
     pub const fn new() -> Self {
-        Timespec(sys::__kernel_timespec {
+        Timespec(rustix::io_uring::Timespec {
             tv_sec: 0,
             tv_nsec: 0,
         })
@@ -491,7 +497,7 @@ impl<'buf> RecvMsgOut<'buf> {
     /// When `true`, data returned by `control_data()` is truncated and
     /// incomplete.
     pub fn is_control_data_truncated(&self) -> bool {
-        (self.header.flags & u32::try_from(libc::MSG_CTRUNC).unwrap()) != 0
+        self.header.flags.contains(sys::RecvmsgOutFlags::CTRUNC)
     }
 
     /// Message control data, with the same semantics as `msghdr.msg_control`.
@@ -504,7 +510,7 @@ impl<'buf> RecvMsgOut<'buf> {
     /// When `true`, data returned by `payload_data()` is truncated and
     /// incomplete.
     pub fn is_payload_truncated(&self) -> bool {
-        (self.header.flags & u32::try_from(libc::MSG_TRUNC).unwrap()) != 0
+        self.header.flags.contains(sys::RecvmsgOutFlags::TRUNC)
     }
 
     /// Message payload, as buffered by the kernel.
@@ -523,7 +529,7 @@ impl<'buf> RecvMsgOut<'buf> {
     }
 
     /// Message flags, with the same semantics as `msghdr.msg_flags`.
-    pub fn flags(&self) -> u32 {
+    pub fn flags(&self) -> sys::RecvmsgOutFlags {
         self.header.flags
     }
 }

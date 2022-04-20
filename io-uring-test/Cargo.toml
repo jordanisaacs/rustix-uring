@@ -9,11 +9,11 @@ edition = "2018"
 [dependencies]
 io-uring = { path = ".." }
 libc = { version = "0.2", features = [ "extra_traits" ] }
+rustix = { version = "0.38.0", features = ["fs"] }
 anyhow = "1"
 tempfile = "3"
 once_cell = "1"
 socket2 = "0.5"
 
 [features]
-direct-syscall = [ "io-uring/direct-syscall" ]
 ci = []
