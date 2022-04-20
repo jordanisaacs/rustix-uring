@@ -372,7 +372,7 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
         let file_index = types::DestinationSlot::auto_target();
 
         let op = opcode::OpenAt::new(dirfd, path.as_ptr());
-        let op = op.flags(libc::O_CREAT as _);
+        let op = op.flags(rustix::io_uring::OFlags::CREATE);
         let op = op.file_index(Some(file_index));
 
         unsafe {
@@ -428,7 +428,7 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
         let file_index = types::DestinationSlot::try_from_slot_target(round).unwrap();
 
         let op = opcode::OpenAt::new(dirfd, path.as_ptr());
-        let op = op.flags(libc::O_CREAT as _);
+        let op = op.flags(rustix::io_uring::OFlags::CREATE);
         let op = op.file_index(Some(file_index));
 
         unsafe {
@@ -640,7 +640,7 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         b"\0".as_ptr().cast(),
         &mut statxbuf3 as *mut libc::statx as *mut _,
     )
-    .flags(libc::AT_EMPTY_PATH)
+    .flags(rustix::fs::AtFlags::EMPTY_PATH)
     .mask(libc::STATX_ALL)
     .build()
     .user_data(0x9a)

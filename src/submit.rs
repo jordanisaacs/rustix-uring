@@ -1,11 +1,13 @@
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::RawFd;
 use std::sync::atomic;
 use std::{io, mem, ptr};
+
+use rustix::fd::OwnedFd;
 
 use crate::register::{execute, Probe};
 use crate::sys;
 use crate::types::{CancelBuilder, Timespec};
-use crate::util::{cast_ptr, OwnedFd};
+use crate::util::cast_ptr;
 use crate::Parameters;
 
 use crate::register::Restriction;
@@ -59,14 +61,18 @@ impl<'a> Submitter<'a> {
     #[inline]
     fn sq_need_wakeup(&self) -> bool {
         unsafe {
-            (*self.sq_flags).load(atomic::Ordering::Acquire) & sys::IORING_SQ_NEED_WAKEUP != 0
+            (*self.sq_flags).load(atomic::Ordering::Acquire)
+                & sys::IoringSqFlags::NEED_WAKEUP.bits()
+                != 0
         }
     }
 
     /// CQ ring is overflown
     fn sq_cq_overflow(&self) -> bool {
         unsafe {
-            (*self.sq_flags).load(atomic::Ordering::Acquire) & sys::IORING_SQ_CQ_OVERFLOW != 0
+            (*self.sq_flags).load(atomic::Ordering::Acquire)
+                & sys::IoringSqFlags::CQ_OVERFLOW.bits()
+                != 0
         }
     }
 
@@ -85,22 +91,15 @@ impl<'a> Submitter<'a> {
         &self,
         to_submit: u32,
         min_complete: u32,
-        flag: u32,
+        flag: sys::IoringEnterFlags,
         arg: Option<&T>,
     ) -> io::Result<usize> {
         let arg = arg
             .map(|arg| cast_ptr(arg).cast())
             .unwrap_or_else(ptr::null);
-        let size = mem::size_of::<T>();
-        sys::io_uring_enter(
-            self.fd.as_raw_fd(),
-            to_submit,
-            min_complete,
-            flag,
-            arg,
-            size,
-        )
-        .map(|res| res as _)
+        let size = std::mem::size_of::<T>();
+        let result = sys::io_uring_enter(self.fd, to_submit, min_complete, flag, arg, size)?;
+        Ok(result as _)
     }
 
     /// Submit all queued submission queue events to the kernel.
@@ -113,7 +112,7 @@ impl<'a> Submitter<'a> {
     /// completion events to complete.
     pub fn submit_and_wait(&self, want: usize) -> io::Result<usize> {
         let len = self.sq_len();
-        let mut flags = 0;
+        let mut flags = sys::IoringEnterFlags::empty();
 
         // This logic suffers from the fact the sq_cq_overflow and sq_need_wakeup
         // each cause an atomic load of the same variable, self.sq_flags.
@@ -121,12 +120,12 @@ impl<'a> Submitter<'a> {
         // this is going to be hit twice, when once would be sufficient.
 
         if want > 0 || self.params.is_setup_iopoll() || self.sq_cq_overflow() {
-            flags |= sys::IORING_ENTER_GETEVENTS;
+            flags |= sys::IoringEnterFlags::GETEVENTS;
         }
 
         if self.params.is_setup_sqpoll() {
             if self.sq_need_wakeup() {
-                flags |= sys::IORING_ENTER_SQ_WAKEUP;
+                flags |= sys::IoringEnterFlags::SQ_WAKEUP;
             } else if want == 0 {
                 // The kernel thread is polling and hasn't fallen asleep, so we don't need to tell
                 // it to process events or wake it up
@@ -143,15 +142,15 @@ impl<'a> Submitter<'a> {
         args: &types::SubmitArgs<'_, '_>,
     ) -> io::Result<usize> {
         let len = self.sq_len();
-        let mut flags = sys::IORING_ENTER_EXT_ARG;
+        let mut flags = sys::IoringEnterFlags::EXT_ARG;
 
         if want > 0 || self.params.is_setup_iopoll() || self.sq_cq_overflow() {
-            flags |= sys::IORING_ENTER_GETEVENTS;
+            flags |= sys::IoringEnterFlags::GETEVENTS;
         }
 
         if self.params.is_setup_sqpoll() {
             if self.sq_need_wakeup() {
-                flags |= sys::IORING_ENTER_SQ_WAKEUP;
+                flags |= sys::IoringEnterFlags::SQ_WAKEUP;
             } else if want == 0 {
                 // The kernel thread is polling and hasn't fallen asleep, so we don't need to tell
                 // it to process events or wake it up
@@ -164,7 +163,7 @@ impl<'a> Submitter<'a> {
 
     /// Wait for the submission queue to have free entries.
     pub fn squeue_wait(&self) -> io::Result<usize> {
-        unsafe { self.enter::<libc::sigset_t>(0, 0, sys::IORING_ENTER_SQ_WAIT, None) }
+        unsafe { self.enter::<libc::sigset_t>(0, 0, sys::IoringEnterFlags::SQ_WAIT, None) }
     }
 
     /// Register in-memory fixed buffers for I/O with the kernel. You can use these buffers with the
@@ -178,12 +177,11 @@ impl<'a> Submitter<'a> {
     /// behaviour may occur.
     pub unsafe fn register_buffers(&self, bufs: &[libc::iovec]) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_BUFFERS,
+            self.fd,
+            sys::IoringRegisterOp::RegisterBuffers,
             bufs.as_ptr().cast(),
             bufs.len() as _,
         )
-        .map(drop)
     }
 
     /// Registers an empty file table of nr_files number of file descriptors. The sparse variant is
@@ -194,18 +192,17 @@ impl<'a> Submitter<'a> {
     pub fn register_files_sparse(&self, nr: u32) -> io::Result<()> {
         let rr = sys::io_uring_rsrc_register {
             nr,
-            flags: sys::IORING_RSRC_REGISTER_SPARSE,
+            flags: sys::IoringRsrcFlags::REGISTER_SPARSE,
             resv2: 0,
             data: 0,
             tags: 0,
         };
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_FILES2,
+            self.fd,
+            sys::IoringRegisterOp::RegisterFiles2,
             cast_ptr::<sys::io_uring_rsrc_register>(&rr).cast(),
             mem::size_of::<sys::io_uring_rsrc_register>() as _,
         )
-        .map(drop)
     }
 
     /// Register files for I/O. You can use the registered files with
@@ -218,12 +215,11 @@ impl<'a> Submitter<'a> {
     /// are complete. Use [`register_files_update`](Self::register_files_update) to avoid this.
     pub fn register_files(&self, fds: &[RawFd]) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_FILES,
+            self.fd,
+            sys::IoringRegisterOp::RegisterFiles,
             fds.as_ptr().cast(),
             fds.len() as _,
         )
-        .map(drop)
     }
 
     /// This operation replaces existing files in the registered file set with new ones,
@@ -233,30 +229,28 @@ impl<'a> Submitter<'a> {
     ///
     /// You can also perform this asynchronously with the
     /// [`FilesUpdate`](crate::opcode::FilesUpdate) opcode.
-    pub fn register_files_update(&self, offset: u32, fds: &[RawFd]) -> io::Result<usize> {
+    pub fn register_files_update(&self, offset: u32, fds: &[RawFd]) -> io::Result<()> {
         let fu = sys::io_uring_files_update {
             offset,
             resv: 0,
             fds: fds.as_ptr() as _,
         };
-        let ret = execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_FILES_UPDATE,
+        execute(
+            self.fd,
+            sys::IoringRegisterOp::RegisterFilesUpdate,
             cast_ptr::<sys::io_uring_files_update>(&fu).cast(),
             fds.len() as _,
-        )?;
-        Ok(ret as _)
+        )
     }
 
     /// Register an eventfd created by [`eventfd`](libc::eventfd) with the io_uring instance.
     pub fn register_eventfd(&self, eventfd: RawFd) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_EVENTFD,
+            self.fd,
+            sys::IoringRegisterOp::RegisterEventfd,
             cast_ptr::<RawFd>(&eventfd).cast(),
             1,
         )
-        .map(drop)
     }
 
     /// This works just like [`register_eventfd`](Self::register_eventfd), except notifications are
@@ -264,12 +258,11 @@ impl<'a> Submitter<'a> {
     /// immediately will not cause a notification.
     pub fn register_eventfd_async(&self, eventfd: RawFd) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_EVENTFD_ASYNC,
+            self.fd,
+            sys::IoringRegisterOp::RegisterEventfdAsync,
             cast_ptr::<RawFd>(&eventfd).cast(),
             1,
         )
-        .map(drop)
     }
 
     /// Fill in the given [`Probe`] with information about the opcodes supported by io_uring on the
@@ -293,12 +286,11 @@ impl<'a> Submitter<'a> {
     /// ```
     pub fn register_probe(&self, probe: &mut Probe) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_PROBE,
+            self.fd,
+            sys::IoringRegisterOp::RegisterProbe,
             probe.as_mut_ptr() as *const _,
             Probe::COUNT as _,
         )
-        .map(drop)
     }
 
     /// Register credentials of the running application with io_uring, and get an id associated with
@@ -310,14 +302,14 @@ impl<'a> Submitter<'a> {
     /// credentials of the task that originally registered the io_uring.
     ///
     /// [`Parameters::is_feature_cur_personality`]: crate::Parameters::is_feature_cur_personality
-    pub fn register_personality(&self) -> io::Result<u16> {
-        let id = execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_PERSONALITY,
+    pub fn register_personality(&self) -> io::Result<()> {
+        execute(
+            self.fd,
+            sys::IoringRegisterOp::RegisterPersonality,
             ptr::null(),
             0,
         )?;
-        Ok(id as u16)
+        Ok(())
     }
 
     /// Unregister all previously registered buffers.
@@ -326,12 +318,11 @@ impl<'a> Submitter<'a> {
     /// it will be cleaned up by the kernel automatically.
     pub fn unregister_buffers(&self) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_UNREGISTER_BUFFERS,
+            self.fd,
+            sys::IoringRegisterOp::UnregisterBuffers,
             ptr::null(),
             0,
         )
-        .map(drop)
     }
 
     /// Unregister all previously registered files.
@@ -340,34 +331,31 @@ impl<'a> Submitter<'a> {
     /// it will be cleaned up by the kernel automatically.
     pub fn unregister_files(&self) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_UNREGISTER_FILES,
+            self.fd,
+            sys::IoringRegisterOp::UnregisterFiles,
             ptr::null(),
             0,
         )
-        .map(drop)
     }
 
     /// Unregister an eventfd file descriptor to stop notifications.
     pub fn unregister_eventfd(&self) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_UNREGISTER_EVENTFD,
+            self.fd,
+            sys::IoringRegisterOp::UnregisterEventfd,
             ptr::null(),
             0,
         )
-        .map(drop)
     }
 
     /// Unregister a previously registered personality.
     pub fn unregister_personality(&self, personality: u16) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_UNREGISTER_PERSONALITY,
+            self.fd,
+            sys::IoringRegisterOp::UnregisterPersonality,
             ptr::null(),
             personality as _,
         )
-        .map(drop)
     }
 
     /// Permanently install a feature allowlist. Once this has been called, attempting to perform
@@ -376,24 +364,22 @@ impl<'a> Submitter<'a> {
     /// This can only be called once, to prevent untrusted code from removing restrictions.
     pub fn register_restrictions(&self, res: &mut [Restriction]) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_RESTRICTIONS,
+            self.fd,
+            sys::IoringRegisterOp::RegisterRestrictions,
             res.as_mut_ptr().cast(),
             res.len() as _,
         )
-        .map(drop)
     }
 
     /// Enable the rings of the io_uring instance if they have been disabled with
     /// [`setup_r_disabled`](crate::Builder::setup_r_disabled).
     pub fn register_enable_rings(&self) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_ENABLE_RINGS,
+            self.fd,
+            sys::IoringRegisterOp::RegisterEnableRings,
             ptr::null(),
             0,
         )
-        .map(drop)
     }
 
     /// Get and/or set the limit for number of io_uring worker threads per NUMA
@@ -405,12 +391,11 @@ impl<'a> Submitter<'a> {
     /// previous limits on success.
     pub fn register_iowq_max_workers(&self, max: &mut [u32; 2]) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_IOWQ_MAX_WORKERS,
+            self.fd,
+            sys::IoringRegisterOp::RegisterIowqMaxWorkers,
             max.as_mut_ptr().cast(),
             max.len() as _,
         )
-        .map(drop)
     }
 
     /// Register buffer ring for provided buffers.
@@ -444,12 +429,11 @@ impl<'a> Submitter<'a> {
             ..Default::default()
         };
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_PBUF_RING,
+            self.fd,
+            sys::IoringRegisterOp::RegisterPbufRing,
             cast_ptr::<sys::io_uring_buf_reg>(&arg).cast(),
             1,
         )
-        .map(drop)
     }
 
     /// Unregister a previously registered buffer ring.
@@ -463,12 +447,11 @@ impl<'a> Submitter<'a> {
             ..Default::default()
         };
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_UNREGISTER_PBUF_RING,
+            self.fd,
+            sys::IoringRegisterOp::UnregisterPbufRing,
             cast_ptr::<sys::io_uring_buf_reg>(&arg).cast(),
             1,
         )
-        .map(drop)
     }
 
     /// Performs a synchronous cancellation request, similar to [AsyncCancel](crate::opcode::AsyncCancel),
@@ -501,12 +484,12 @@ impl<'a> Submitter<'a> {
         timeout: Option<Timespec>,
         builder: CancelBuilder,
     ) -> io::Result<()> {
-        let timespec = timeout.map(|ts| ts.0).unwrap_or(sys::__kernel_timespec {
+        let timespec = timeout.map(|ts| ts.0).unwrap_or(sys::Timespec {
             tv_sec: -1,
             tv_nsec: -1,
         });
         let user_data = builder.user_data.unwrap_or(0);
-        let flags = builder.flags.bits();
+        let flags = sys::IoringAsyncCancelFlags::from_bits_retain(builder.flags.bits());
         let fd = builder.to_fd();
 
         let arg = sys::io_uring_sync_cancel_reg {
@@ -517,11 +500,10 @@ impl<'a> Submitter<'a> {
             pad: [0u64; 4],
         };
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_SYNC_CANCEL,
+            self.fd,
+            sys::IoringRegisterOp::RegisterSyncCancel,
             cast_ptr::<sys::io_uring_sync_cancel_reg>(&arg).cast(),
             1,
         )
-        .map(drop)
     }
 }

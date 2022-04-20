@@ -875,7 +875,7 @@ pub fn test_tcp_buffer_select<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     match bid {
         0 => assert_eq!(&buf0[..256], &input[1024..]),
         1 => assert_eq!(&buf1[..256], &input[1024..]),
-        _ => panic!("{}", cqe.flags()),
+        _ => panic!("{:?}", cqe.flags()),
     }
 
     // remove one remaining buf
@@ -1241,7 +1241,7 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data(), 42);
     assert!(cqes[0].result() >= 0);
     assert!(cqes[0].result() != plain_fd);
-    assert_eq!(cqes[0].flags(), 0);
+    assert_eq!(cqes[0].flags(), Default::default());
 
     // Close both sockets, to avoid leaking FDs.
     let io_uring_socket = unsafe { Socket::from_raw_fd(cqes[0].result()) };
@@ -1275,7 +1275,7 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data(), 55);
     assert_eq!(cqes[0].result(), 0);
-    assert_eq!(cqes[0].flags(), 0);
+    assert_eq!(cqes[0].flags(), Default::default());
 
     // If the fixed-socket operation worked properly, this must not fail.
     ring.submitter().unregister_files().unwrap();
@@ -1324,7 +1324,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), 0);
+        assert_eq!(cqes[0].flags(), Default::default());
     }
 
     // This structure is actually only used for input arguments to the kernel
@@ -1476,7 +1476,7 @@ pub fn test_udp_sendzc_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), 0);
+        assert_eq!(cqes[0].flags(), Default::default());
     }
 
     let recvmsg_e = opcode::RecvMulti::new(Fd(server_socket.as_raw_fd()), BUF_GROUP)
