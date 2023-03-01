@@ -1,11 +1,18 @@
-# Linux IO Uring
-[![github actions](https://github.com/tokio-rs/io-uring/workflows/ci/badge.svg)](https://github.com/tokio-rs/io-uring/actions)
+# A Linux `io_uring` API, using rustix
+[![github actions](https://github.com/jordanisaacs/rustix-uring/workflows/ci/badge.svg)](https://github.com/jordanisaacs/rustix-uring/actions)
 [![crates](https://img.shields.io/crates/v/io-uring.svg)](https://crates.io/crates/io-uring)
-[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/tokio-rs/io-uring/blob/master/LICENSE-MIT)
-[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/tokio-rs/io-uring/blob/master/LICENSE-APACHE)
+[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/jordanisaacs/rustix-uring/blob/master/LICENSE-MIT)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/jordanisaacs/rustix-uring/blob/master/LICENSE-APACHE)
 [![docs.rs](https://docs.rs/io-uring/badge.svg)](https://docs.rs/io-uring/)
 
-The low-level [`io_uring`](https://kernel.dk/io_uring.pdf) userspace interface for Rust.
+This is a Linux [`io_uring`](https://kernel.dk/io_uring.pdf) userspace
+interface for Rust. It is higher-level than the userspace boundary API, but
+lower-level than an async runtime.
+
+This library derived from the
+[`io_uring` crate](https://github.com/tokio-rs/io-uring), and is modified to
+use [`rustix`](https://github.com/bytecodealliance/rustix) to perform the
+system calls.
 
 ## Usage
 
@@ -60,7 +67,7 @@ If you use a kernel lower than 5.6, this example will fail.
 
 You can run the test and benchmark of the library with the following commands.
 
-```
+```bash
 $ cargo run --package io-uring-test
 $ cargo bench --package io-uring-bench
 ```
