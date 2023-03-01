@@ -2,7 +2,8 @@ use std::io;
 use std::os::unix::io::AsRawFd;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use io_uring::{opcode, squeue, types, IoUring};
+use io_uring::types::{Fd, IoringSqeFlags};
+use io_uring::{opcode, IoUring};
 use tempfile::tempfile;
 
 fn bench_iovec(c: &mut Criterion) {
@@ -29,7 +30,7 @@ fn bench_iovec(c: &mut Criterion) {
             let bufs = black_box(&bufs);
 
             let entry = opcode::Writev::new(
-                types::Fd(fd.as_raw_fd()),
+                Fd(fd.as_raw_fd()),
                 bufs.as_ptr() as *const _,
                 bufs.len() as _,
             );
@@ -61,7 +62,7 @@ fn bench_iovec(c: &mut Criterion) {
             let bufs = black_box(&bufs);
 
             let entry = opcode::Writev::new(
-                types::Fd(fd.as_raw_fd()),
+                Fd(fd.as_raw_fd()),
                 bufs.as_ptr() as *const _,
                 bufs.len() as _,
             );
@@ -69,12 +70,12 @@ fn bench_iovec(c: &mut Criterion) {
             unsafe {
                 let mut queue = ring.submission();
                 queue
-                    .push(&entry.build().flags(squeue::Flags::IO_LINK))
+                    .push(&entry.build().flags(IoringSqeFlags::IO_LINK))
                     .expect("queue is full");
                 for _ in 0..4 {
                     let entry = opcode::Nop::new().build();
                     queue
-                        .push(&entry.flags(squeue::Flags::IO_LINK))
+                        .push(&entry.flags(IoringSqeFlags::IO_LINK))
                         .expect("queue is full");
                 }
             }
@@ -92,12 +93,11 @@ fn bench_iovec(c: &mut Criterion) {
         b.iter(|| {
             let mut queue = ring.submission();
             for buf in black_box(&bufs) {
-                let entry =
-                    opcode::Write::new(types::Fd(fd.as_raw_fd()), buf.as_ptr(), buf.len() as _);
+                let entry = opcode::Write::new(Fd(fd.as_raw_fd()), buf.as_ptr(), buf.len() as _);
 
                 unsafe {
                     queue
-                        .push(&entry.build().flags(squeue::Flags::IO_LINK))
+                        .push(&entry.build().flags(IoringSqeFlags::IO_LINK))
                         .expect("queue is full");
                 }
             }
@@ -116,8 +116,7 @@ fn bench_iovec(c: &mut Criterion) {
 
         b.iter(|| {
             for buf in black_box(&bufs) {
-                let entry =
-                    opcode::Write::new(types::Fd(fd.as_raw_fd()), buf.as_ptr(), buf.len() as _);
+                let entry = opcode::Write::new(Fd(fd.as_raw_fd()), buf.as_ptr(), buf.len() as _);
 
                 unsafe {
                     ring.submission()

@@ -1,5 +1,7 @@
 use criterion::black_box;
 
+use io_uring::types::IoringUserData;
+
 const N: usize = 8;
 const ITER: usize = 8;
 
@@ -12,7 +14,8 @@ fn bench_io_uring() {
         let mut sq = io_uring.submission();
 
         for i in 0..N {
-            let nop_e = opcode::Nop::new().build().user_data(black_box(i as _));
+            let data = IoringUserData { u64_: i as _ };
+            let nop_e = opcode::Nop::new().build().user_data(black_box(data));
             unsafe {
                 sq.push(&nop_e).ok().unwrap();
             }
@@ -32,14 +35,30 @@ fn bench_io_uring_batch() {
 
     let mut io_uring = IoUring::new(N as _).unwrap();
     let sqes = [
-        opcode::Nop::new().build().user_data(black_box(0)),
-        opcode::Nop::new().build().user_data(black_box(1)),
-        opcode::Nop::new().build().user_data(black_box(2)),
-        opcode::Nop::new().build().user_data(black_box(3)),
-        opcode::Nop::new().build().user_data(black_box(4)),
-        opcode::Nop::new().build().user_data(black_box(5)),
-        opcode::Nop::new().build().user_data(black_box(6)),
-        opcode::Nop::new().build().user_data(black_box(7)),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 0 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 1 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 2 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 3 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 4 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 5 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 6 })),
+        opcode::Nop::new()
+            .build()
+            .user_data(black_box(IoringUserData { u64_: 7 })),
     ];
     let mut cqes = [
         mem::MaybeUninit::uninit(),
