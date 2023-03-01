@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/tokio-rs/io-uring/blob/master/LICENSE-APACHE)
 [![docs.rs](https://docs.rs/io-uring/badge.svg)](https://docs.rs/io-uring/)
 
-The low-level [`io_uring`](https://kernel.dk/io_uring.pdf) userspace interface for Rust.
+The low-level [`io_uring`](https://kernel.dk/io_uring.pdf) userspace interface for Rust ported to rustix.
 
 ## Usage
 
@@ -32,7 +32,7 @@ fn main() -> io::Result<()> {
 
     let read_e = opcode::Read::new(types::Fd(fd.as_raw_fd()), buf.as_mut_ptr(), buf.len() as _)
         .build()
-        .user_data(0x42);
+        .user_data(types::IoringUserData { u64_: 0x42 });
 
     // Note that the developer needs to ensure
     // that the entry pushed into submission queue is valid (e.g. fd, buffer).
@@ -46,7 +46,7 @@ fn main() -> io::Result<()> {
 
     let cqe = ring.completion().next().expect("completion queue is empty");
 
-    assert_eq!(cqe.user_data(), 0x42);
+    assert_eq!(cqe.user_data().u64_(), 0x42);
     assert!(cqe.result() >= 0, "read error: {}", cqe.result());
 
     Ok(())
@@ -60,7 +60,7 @@ If you use a kernel lower than 5.6, this example will fail.
 
 You can run the test and benchmark of the library with the following commands.
 
-```
+```bash
 $ cargo run --package io-uring-test
 $ cargo bench --package io-uring-bench
 ```
