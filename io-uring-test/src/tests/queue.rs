@@ -23,7 +23,7 @@ pub fn test_nop<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x42);
+    assert_eq!(cqes[0].user_data().u64_(), 0x42);
     assert_eq!(cqes[0].result(), 0);
 
     Ok(())
@@ -71,7 +71,7 @@ pub fn test_batch<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     for entry in cqes {
         let entry: cqueue::Entry = entry.clone().into();
-        assert_eq!(entry.user_data(), 0x09);
+        assert_eq!(entry.user_data().u64_(), 0x09);
     }
 
     Ok(())
@@ -144,7 +144,7 @@ pub fn test_debug_print<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), num_to_sub);
     for cqe in cqes {
-        assert_eq!(cqe.user_data(), 0x42);
+        assert_eq!(cqe.user_data().u64_(), 0x42);
         assert_eq!(cqe.result(), 0);
     }
     println!("Empty: {:?}", ring.submission());
@@ -175,7 +175,7 @@ pub fn test_msg_ring_data<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     unsafe {
         ring.submission()
             .push(
-                &opcode::MsgRingData::new(fd, result, user_data, None)
+                &opcode::MsgRingData::new(fd, result, user_data.into(), None)
                     .build()
                     .into(),
             )
@@ -185,13 +185,13 @@ pub fn test_msg_ring_data<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let source_cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(source_cqes.len(), 1);
-    assert_eq!(source_cqes[0].user_data(), 0);
+    assert_eq!(source_cqes[0].user_data().u64_(), 0);
     assert_eq!(source_cqes[0].result(), 0);
     assert_eq!(source_cqes[0].flags(), cqueue::Flags::empty());
 
     let dest_cqes: Vec<cqueue::Entry> = dest_ring.completion().map(Into::into).collect();
     assert_eq!(dest_cqes.len(), 1);
-    assert_eq!(dest_cqes[0].user_data(), user_data);
+    assert_eq!(dest_cqes[0].user_data().u64_(), user_data);
     assert_eq!(dest_cqes[0].result(), result);
     assert_eq!(dest_cqes[0].flags().bits(), 0);
 
@@ -242,7 +242,7 @@ pub fn test_msg_ring_send_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         let dest_slot = types::DestinationSlot::try_from_slot_target(1).unwrap();
         ring.submission()
             .push(
-                &opcode::MsgRingSendFd::new(fd, types::Fixed(0), dest_slot, 22)
+                &opcode::MsgRingSendFd::new(fd, types::Fixed(0), dest_slot, 22.into())
                     .build()
                     .into(),
             )
@@ -252,13 +252,13 @@ pub fn test_msg_ring_send_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     {
         let source_cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
         assert_eq!(source_cqes.len(), 1);
-        assert_eq!(source_cqes[0].user_data(), 0);
+        assert_eq!(source_cqes[0].user_data().u64_(), 0);
         assert_eq!(source_cqes[0].result(), 0);
         assert_eq!(source_cqes[0].flags(), cqueue::Flags::empty());
 
         let dest_cqes: Vec<cqueue::Entry> = temp_ring.completion().map(Into::into).collect();
         assert_eq!(dest_cqes.len(), 1);
-        assert_eq!(dest_cqes[0].user_data(), 22);
+        assert_eq!(dest_cqes[0].user_data().u64_(), 22);
         assert_eq!(dest_cqes[0].result(), 0);
         assert_eq!(dest_cqes[0].flags(), cqueue::Flags::empty());
     }
@@ -276,20 +276,20 @@ pub fn test_msg_ring_send_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         let dest_slot = types::DestinationSlot::try_from_slot_target(2).unwrap();
         temp_ring
             .submission()
-            .push(&opcode::MsgRingSendFd::new(fd, types::Fixed(1), dest_slot, 44).build())
+            .push(&opcode::MsgRingSendFd::new(fd, types::Fixed(1), dest_slot, 44.into()).build())
             .expect("queue is full");
     }
     temp_ring.submit_and_wait(1)?;
     {
         let source_cqes: Vec<cqueue::Entry> = temp_ring.completion().map(Into::into).collect();
         assert_eq!(source_cqes.len(), 1);
-        assert_eq!(source_cqes[0].user_data(), 0);
+        assert_eq!(source_cqes[0].user_data().u64_(), 0);
         assert_eq!(source_cqes[0].result(), 0);
         assert_eq!(source_cqes[0].flags(), cqueue::Flags::empty());
 
         let dest_cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
         assert_eq!(dest_cqes.len(), 1);
-        assert_eq!(dest_cqes[0].user_data(), 44);
+        assert_eq!(dest_cqes[0].user_data().u64_(), 44);
         assert_eq!(dest_cqes[0].result(), 0);
         assert_eq!(dest_cqes[0].flags(), cqueue::Flags::empty());
     }

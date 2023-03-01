@@ -33,7 +33,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x09);
+    assert_eq!(cqes[0].user_data().u64_(), 0x09);
     assert_eq!(cqes[0].result(), -libc::ETIME);
 
     // add timeout but no
@@ -62,7 +62,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x0b);
+    assert_eq!(cqes[0].user_data().u64_(), 0x0b);
     assert_eq!(cqes[0].result(), 0);
 
     // timeout
@@ -74,7 +74,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x0a);
+    assert_eq!(cqes[0].user_data().u64_(), 0x0a);
     assert_eq!(cqes[0].result(), -libc::ETIME);
 
     Ok(())
@@ -111,11 +111,11 @@ pub fn test_timeout_count<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(start.elapsed().as_secs(), 0);
 
     let mut cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
-    cqes.sort_by_key(|cqe| cqe.user_data());
+    cqes.sort_by_key(|cqe| cqe.user_data().u64_());
 
     assert_eq!(cqes.len(), 2);
-    assert_eq!(cqes[0].user_data(), 0x0c);
-    assert_eq!(cqes[1].user_data(), 0x0d);
+    assert_eq!(cqes[0].user_data().u64_(), 0x0c);
+    assert_eq!(cqes[1].user_data().u64_(), 0x0d);
     assert_eq!(cqes[0].result(), 0);
     assert_eq!(cqes[1].result(), 0);
 
@@ -150,7 +150,7 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // remove timeout
 
-    let timeout_e = opcode::TimeoutRemove::new(0x10);
+    let timeout_e = opcode::TimeoutRemove::new(0x10.into());
 
     unsafe {
         let mut queue = ring.submission();
@@ -165,11 +165,11 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(start.elapsed().as_secs(), 0);
 
     let mut cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
-    cqes.sort_by_key(|cqe| cqe.user_data());
+    cqes.sort_by_key(|cqe| cqe.user_data().u64_());
 
     assert_eq!(cqes.len(), 2);
-    assert_eq!(cqes[0].user_data(), 0x10);
-    assert_eq!(cqes[1].user_data(), 0x11);
+    assert_eq!(cqes[0].user_data().u64_(), 0x10);
+    assert_eq!(cqes[1].user_data().u64_(), 0x11);
     assert_eq!(cqes[0].result(), -libc::ECANCELED);
     assert_eq!(cqes[1].result(), 0);
 
@@ -206,7 +206,7 @@ pub fn test_timeout_update<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let ts = types::Timespec::new().nsec(2_000_000); // 2ms
 
-    let timeout_e = opcode::TimeoutUpdate::new(0x10, &ts);
+    let timeout_e = opcode::TimeoutUpdate::new(0x10.into(), &ts);
 
     unsafe {
         let mut queue = ring.submission();
@@ -221,11 +221,11 @@ pub fn test_timeout_update<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert!(start.elapsed().as_nanos() >= 2_000_000);
 
     let mut cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
-    cqes.sort_by_key(|cqe| cqe.user_data());
+    cqes.sort_by_key(|cqe| cqe.user_data().u64_());
 
     assert_eq!(cqes.len(), 2);
-    assert_eq!(cqes[0].user_data(), 0x10);
-    assert_eq!(cqes[1].user_data(), 0x11);
+    assert_eq!(cqes[0].user_data().u64_(), 0x10);
+    assert_eq!(cqes[1].user_data().u64_(), 0x11);
     assert_eq!(cqes[0].result(), -libc::ETIME);
     assert_eq!(cqes[1].result(), 0);
 
@@ -260,7 +260,7 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // remove timeout
 
-    let timeout_e = opcode::AsyncCancel::new(0x10);
+    let timeout_e = opcode::AsyncCancel::new(0x10.into());
 
     unsafe {
         let mut queue = ring.submission();
@@ -275,11 +275,11 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(start.elapsed().as_secs(), 0);
 
     let mut cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
-    cqes.sort_by_key(|cqe| cqe.user_data());
+    cqes.sort_by_key(|cqe| cqe.user_data().u64_());
 
     assert_eq!(cqes.len(), 2);
-    assert_eq!(cqes[0].user_data(), 0x10);
-    assert_eq!(cqes[1].user_data(), 0x11);
+    assert_eq!(cqes[0].user_data().u64_(), 0x10);
+    assert_eq!(cqes[1].user_data().u64_(), 0x11);
     assert_eq!(cqes[0].result(), -libc::ECANCELED);
     assert_eq!(cqes[1].result(), 0);
 
@@ -327,7 +327,7 @@ pub fn test_timeout_abs<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x19);
+    assert_eq!(cqes[0].user_data().u64_(), 0x19);
     assert_eq!(cqes[0].result(), -libc::ETIME);
 
     Ok(())
@@ -376,7 +376,7 @@ pub fn test_timeout_submit_args<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x1c);
+    assert_eq!(cqes[0].user_data().u64_(), 0x1c);
     assert_eq!(cqes[0].result(), 0);
 
     Ok(())

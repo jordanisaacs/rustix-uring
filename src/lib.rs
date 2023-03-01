@@ -2,7 +2,6 @@
 //!
 //! The crate only provides a summary of the parameters.
 //! For more detailed documentation, see manpage.
-#![warn(unused_qualifications)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
@@ -20,7 +19,7 @@ use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 use core::{cmp, mem};
 
-use rustix::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
+use rustix::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 
 pub use cqueue::CompletionQueue;
 pub use register::Probe;
@@ -92,7 +91,7 @@ impl IoUring<squeue::Entry, cqueue::Entry> {
     /// The caller must uphold that the file descriptor is owned and refers to a uring. The
     /// `params` argument must be equivalent to the those previously filled in by the kernel when
     /// the provided ring was created.
-    pub unsafe fn from_fd(fd: RawFd, params: Parameters) -> io::Result<Self> {
+    pub unsafe fn from_fd(fd: RawFd, params: Parameters) -> Result<Self> {
         Self::with_fd_and_params(OwnedFd::from_raw_fd(fd), params.0)
     }
 }
@@ -106,22 +105,21 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> IoUring<S, C> {
     /// queue entry (SQE) and completion queue entry (CQE) types.
     #[must_use]
     pub fn builder() -> Builder<S, C> {
+        let mut params = sys::io_uring_params::default();
+        params.flags = S::BUILD_FLAGS | C::BUILD_FLAGS;
         Builder {
             dontfork: false,
-            params: sys::io_uring_params {
-                flags: S::BUILD_FLAGS | C::BUILD_FLAGS,
-                ..Default::default()
-            },
+            params,
             phantom: PhantomData,
         }
     }
 
-    fn with_params(entries: u32, mut p: sys::io_uring_params) -> Result<Self> {
-        let fd = sys::io_uring_setup(entries, &mut p)?;
+    unsafe fn with_params(entries: u32, mut p: sys::io_uring_params) -> Result<Self> {
+        let fd = unsafe { sys::io_uring_setup(entries, &mut p)? };
         unsafe { Self::with_fd_and_params(fd, p) }
     }
 
-    unsafe fn with_fd_and_params(fd: OwnedFd, p: sys::io_uring_params) -> io::Result<Self> {
+    unsafe fn with_fd_and_params(fd: OwnedFd, p: sys::io_uring_params) -> Result<Self> {
         // NOTE: The `SubmissionQueue` and `CompletionQueue` are references,
         // and their lifetime can never exceed `MemoryMap`.
         //
@@ -168,7 +166,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> IoUring<S, C> {
             }
         }
 
-        let (mm, sq, cq) = unsafe { setup_queue(&fd, &p)? };
+        let (mm, sq, cq) = setup_queue(&fd, &p)?;
 
         Ok(IoUring {
             sq,
@@ -343,7 +341,11 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> Builder<S, C> {
 
     /// Share the asynchronous worker thread backend of this io_uring with the specified io_uring
     /// file descriptor instead of creating a new thread pool.
-    pub fn setup_attach_wq(&mut self, fd: RawFd) -> &mut Self {
+    ///
+    /// # Safety
+    ///
+    /// `fd` must be an open file descriptor.
+    pub unsafe fn setup_attach_wq(&mut self, fd: RawFd) -> &mut Self {
         self.params.flags |= sys::IoringSetupFlags::ATTACH_WQ;
         self.params.wq_fd = fd as _;
         self
@@ -425,7 +427,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> Builder<S, C> {
     /// Build an [IoUring], with the specified number of entries in the submission queue and
     /// completion queue unless [`setup_cqsize`](Self::setup_cqsize) has been called.
     pub fn build(&self, entries: u32) -> Result<IoUring<S, C>> {
-        let ring = IoUring::with_params(entries, self.params)?;
+        let ring = unsafe { IoUring::with_params(entries, self.params)? };
 
         if self.dontfork {
             ring.memory.sq_mmap.dontfork()?;
@@ -610,7 +612,9 @@ impl Parameters {
     /// This feature allows sending and recieving multiple buffers as a single bundle. Available
     /// since kernel 6.10.
     pub fn is_feature_recvsend_bundle(&self) -> bool {
-        self.0.features & sys::IORING_FEAT_RECVSEND_BUNDLE != 0
+        self.0
+            .features
+            .contains(sys::IoringFeatureFlags::RECVSEND_BUNDLE)
     }
 
     /// The number of submission queue entries allocated.

@@ -48,8 +48,8 @@ pub struct Entry32(pub(crate) Entry, pub(crate) [u64; 2]);
 
 #[test]
 fn test_entry_sizes() {
-    assert_eq!(mem::size_of::<Entry>(), 16);
-    assert_eq!(mem::size_of::<Entry32>(), 32);
+    assert_eq!(size_of::<Entry>(), 16);
+    assert_eq!(size_of::<Entry32>(), 32);
 }
 
 bitflags! {
@@ -219,7 +219,14 @@ impl Entry {
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
-    pub fn user_data(&self) -> u64 {
+    pub fn user_data(&self) -> sys::io_uring_user_data {
+        self.0.user_data
+    }
+
+    /// The user data of the request, as set by
+    /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
+    #[inline]
+    pub fn user_data_u64(&self) -> u64 {
         self.0.user_data.u64_()
     }
 
@@ -275,15 +282,8 @@ impl Entry32 {
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
-    pub fn user_data(&self) -> u64 {
-        self.0 .0.user_data.u64_()
-    }
-
-    /// The user data of the request, as set by
-    /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
-    #[inline]
-    pub fn user_data_ptr(&self) -> *mut core::ffi::c_void {
-        self.0 .0.user_data.ptr()
+    pub fn user_data(&self) -> sys::io_uring_user_data {
+        self.0 .0.user_data
     }
 
     /// Metadata related to the operation.
@@ -369,6 +369,6 @@ pub fn sock_nonempty(flags: Flags) -> bool {
 ///
 /// This corresponds to the `IORING_CQE_F_NOTIF` flag,
 /// currently used by the [SendZc](crate::opcode::SendZc) operation.
-pub fn notif(flags: u32) -> bool {
-    flags & sys::IORING_CQE_F_NOTIF != 0
+pub fn notif(flags: Flags) -> bool {
+    flags.contains(Flags::NOTIF)
 }

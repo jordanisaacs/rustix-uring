@@ -50,8 +50,8 @@ use rustix::fd::RawFd;
 
 pub use sys::ReadWriteFlags as RwFlags;
 pub use sys::{
-    iovec, msghdr, sockaddr, socklen_t, Advice, AtFlags, EpollEvent, Mode, OFlags, RenameFlags,
-    ResolveFlags, Statx, StatxFlags,
+    iovec, Advice, AtFlags, EpollEvent, Mode, MsgHdr, OFlags, RenameFlags, ResolveFlags,
+    SocketAddrLen, SocketAddrOpaque, Statx, StatxFlags,
 };
 
 /// A file descriptor that has not been registered with io_uring.
@@ -140,11 +140,7 @@ pub struct OpenHow(sys::open_how);
 
 impl OpenHow {
     pub const fn new() -> Self {
-        OpenHow(sys::open_how {
-            flags: 0,
-            mode: 0,
-            resolve: sys::ResolveFlags::empty(),
-        })
+        OpenHow(sys::open_how::zeroed())
     }
 
     pub const fn flags(mut self, flags: OFlags) -> Self {
@@ -212,7 +208,7 @@ impl From<std::time::Duration> for Timespec {
 /// Note that arguments that exceed their lifetime will fail to compile.
 ///
 /// ```compile_fail
-/// use io_uring::types::{ SubmitArgs, Timespec };
+/// use rustix_uring::types::{ SubmitArgs, Timespec };
 ///
 /// let sigmask: libc::sigset_t = unsafe { std::mem::zeroed() };
 ///
@@ -237,10 +233,10 @@ impl<'prev, 'now> SubmitArgs<'prev, 'now> {
     #[inline]
     pub const fn new() -> SubmitArgs<'static, 'static> {
         let args = sys::io_uring_getevents_arg {
-            sigmask: 0,
+            sigmask: sys::io_uring_ptr::null(),
             sigmask_sz: 0,
-            pad: 0,
-            ts: 0,
+            min_wait_usec: 0,
+            ts: sys::io_uring_ptr::null(),
         };
 
         SubmitArgs {
@@ -251,9 +247,10 @@ impl<'prev, 'now> SubmitArgs<'prev, 'now> {
     }
 
     #[inline]
-    pub fn sigmask<'new>(mut self, sigmask: &'new sys::sigset_t) -> SubmitArgs<'now, 'new> {
-        self.args.sigmask = cast_ptr(sigmask) as _;
-        self.args.sigmask_sz = core::mem::size_of::<sys::sigset_t>() as _;
+    pub fn sigmask<'new>(mut self, sigmask: &'new sys::KernelSigSet) -> SubmitArgs<'now, 'new> {
+        self.args.sigmask = sys::io_uring_ptr::new(cast_ptr(sigmask) as _);
+        self.args.sigmask_sz = core::mem::size_of::<sys::KernelSigSet>() as _;
+        assert!(false);
 
         SubmitArgs {
             args: self.args,
@@ -264,7 +261,7 @@ impl<'prev, 'now> SubmitArgs<'prev, 'now> {
 
     #[inline]
     pub fn timespec<'new>(mut self, timespec: &'new Timespec) -> SubmitArgs<'now, 'new> {
-        self.args.ts = cast_ptr(timespec) as _;
+        self.args.ts = sys::io_uring_ptr::new(cast_ptr(timespec) as _);
 
         SubmitArgs {
             args: self.args,
@@ -281,13 +278,13 @@ pub struct BufRingEntry(sys::io_uring_buf);
 #[allow(clippy::len_without_is_empty)]
 impl BufRingEntry {
     /// Sets the entry addr.
-    pub fn set_addr(&mut self, addr: u64) {
-        self.0.addr = addr;
+    pub fn set_addr(&mut self, addr: *mut core::ffi::c_void) {
+        self.0.addr.ptr = addr;
     }
 
     /// Returns the entry addr.
-    pub fn addr(&self) -> u64 {
-        self.0.addr
+    pub fn addr(&self) -> *mut core::ffi::c_void {
+        self.0.addr.ptr
     }
 
     /// Sets the entry len.
@@ -317,13 +314,19 @@ impl BufRingEntry {
     ///
     /// # Safety
     ///
-    /// The ptr will be dereferenced in order to determine the address of the resv field,
+    /// The ptr will be dereferenced in order to determine the address of the tail field,
     /// so the caller is responsible for passing in a valid pointer. And not just
     /// a valid pointer type, but also the argument must be the address to the first entry
-    /// of the buf_ring for the resv field to even be considered the tail field of the ring.
+    /// of the buf_ring for the tail field to even be considered the tail field of the ring.
     /// The entry must also be properly initialized.
     pub unsafe fn tail(ring_base: *const BufRingEntry) -> *const u16 {
-        std::ptr::addr_of!((*ring_base).0.resv)
+        core::ptr::addr_of!(
+            (*ring_base.cast::<sys::io_uring_buf_ring>())
+                .tail_or_bufs
+                .tail
+                .as_ref()
+                .tail
+        )
     }
 }
 
@@ -397,7 +400,7 @@ impl<'buf> RecvMsgOut<'buf> {
     /// (only `msg_namelen` and `msg_controllen` fields are relevant).
     #[allow(clippy::result_unit_err)]
     #[allow(clippy::useless_conversion)]
-    pub fn parse(buffer: &'buf [u8], msghdr: &msghdr) -> Result<Self, ()> {
+    pub fn parse(buffer: &'buf [u8], msghdr: &MsgHdr) -> Result<Self, ()> {
         let msghdr_name_len = usize::try_from(msghdr.msg_namelen).unwrap();
         let msghdr_control_len = usize::try_from(msghdr.msg_controllen).unwrap();
 
@@ -536,7 +539,7 @@ impl<'buf> RecvMsgOut<'buf> {
 /// ### Examples
 ///
 /// ```
-/// use io_uring::types::{CancelBuilder, Fd, Fixed};
+/// use rustix_uring::types::{CancelBuilder, Fd, Fixed};
 ///
 /// // Match all in-flight requests.
 /// CancelBuilder::any();
@@ -556,7 +559,7 @@ impl<'buf> RecvMsgOut<'buf> {
 #[derive(Debug)]
 pub struct CancelBuilder {
     pub(crate) flags: AsyncCancelFlags,
-    pub(crate) user_data: Option<u64>,
+    pub(crate) user_data: sys::io_uring_user_data,
     pub(crate) fd: Option<sealed::Target>,
 }
 
@@ -569,7 +572,7 @@ impl CancelBuilder {
     pub const fn any() -> Self {
         Self {
             flags: AsyncCancelFlags::ANY,
-            user_data: None,
+            user_data: sys::io_uring_user_data::zeroed(),
             fd: None,
         }
     }
@@ -580,10 +583,28 @@ impl CancelBuilder {
     /// The first request with the given `user_data` value will be canceled.
     /// [CancelBuilder::all](#method.all) can be called to instead match every
     /// request with the provided `user_data` value.
-    pub const fn user_data(user_data: u64) -> Self {
+    pub fn user_data(user_data: impl Into<sys::io_uring_user_data>) -> Self {
         Self {
             flags: AsyncCancelFlags::empty(),
-            user_data: Some(user_data),
+            user_data: user_data.into(),
+            fd: None,
+        }
+    }
+
+    /// A `const` version of [`Self::user_data`] for `u64`s.
+    pub const fn user_data_u64(u64_: u64) -> Self {
+        Self {
+            flags: AsyncCancelFlags::empty(),
+            user_data: sys::io_uring_user_data::from_u64(u64_),
+            fd: None,
+        }
+    }
+
+    /// A `const` version of [`Self::user_data`] for `*mut c_void`s.
+    pub const fn user_data_ptr(ptr: *mut core::ffi::c_void) -> Self {
+        Self {
+            flags: AsyncCancelFlags::empty(),
+            user_data: sys::io_uring_user_data::from_ptr(ptr),
             fd: None,
         }
     }
@@ -603,7 +624,7 @@ impl CancelBuilder {
         }
         Self {
             flags,
-            user_data: None,
+            user_data: sys::io_uring_user_data::default(),
             fd: Some(target),
         }
     }
@@ -634,16 +655,11 @@ impl CancelBuilder {
 /// call](https://www.kernel.org/doc/html/latest/userspace-api/futex2.html).
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct FutexWaitV(sys::futex_waitv);
+pub struct FutexWaitV(sys::FutexWait);
 
 impl FutexWaitV {
     pub const fn new() -> Self {
-        Self(sys::futex_waitv {
-            val: 0,
-            uaddr: 0,
-            flags: 0,
-            __reserved: 0,
-        })
+        Self(sys::FutexWait::new())
     }
 
     pub const fn val(mut self, val: u64) -> Self {
@@ -651,12 +667,12 @@ impl FutexWaitV {
         self
     }
 
-    pub const fn uaddr(mut self, uaddr: u64) -> Self {
-        self.0.uaddr = uaddr;
+    pub const fn uaddr(mut self, uaddr: *mut core::ffi::c_void) -> Self {
+        self.0.uaddr = sys::FutexWaitPtr::new(uaddr);
         self
     }
 
-    pub const fn flags(mut self, flags: u32) -> Self {
+    pub const fn flags(mut self, flags: sys::FutexWaitFlags) -> Self {
         self.0.flags = flags;
         self
     }
@@ -686,7 +702,7 @@ mod tests {
 
         let mut cb = CancelBuilder::user_data(42);
         assert_eq!(cb.flags, AsyncCancelFlags::empty());
-        assert_eq!(cb.user_data, Some(42));
+        assert_eq!(cb.user_data, sys::io_uring_user_data::from_u64(42));
         assert!(cb.fd.is_none());
         cb = cb.all();
         assert_eq!(cb.flags, AsyncCancelFlags::ALL);
@@ -694,14 +710,14 @@ mod tests {
         let mut cb = CancelBuilder::fd(Fd(42));
         assert_eq!(cb.flags, AsyncCancelFlags::FD);
         assert!(matches!(cb.fd, Some(Target::Fd(42))));
-        assert!(cb.user_data.is_none());
+        assert_eq!(cb.user_data, Default::default());
         cb = cb.all();
         assert_eq!(cb.flags, AsyncCancelFlags::FD | AsyncCancelFlags::ALL);
 
         let mut cb = CancelBuilder::fd(Fixed(42));
         assert_eq!(cb.flags, AsyncCancelFlags::FD | AsyncCancelFlags::FD_FIXED);
         assert!(matches!(cb.fd, Some(Target::Fixed(42))));
-        assert!(cb.user_data.is_none());
+        assert_eq!(cb.user_data, Default::default());
         cb = cb.all();
         assert_eq!(
             cb.flags,

@@ -1,5 +1,5 @@
 use core::sync::atomic;
-use core::{mem, ptr};
+use core::{ffi, mem, ptr};
 
 use rustix::fd::{OwnedFd, RawFd};
 use rustix::io;
@@ -87,18 +87,36 @@ impl<'a> Submitter<'a> {
     /// # Safety
     ///
     /// This provides a raw interface so developer must ensure that parameters are correct.
-    pub unsafe fn enter<T: Sized>(
+    pub unsafe fn enter_sigmask(
         &self,
         to_submit: u32,
         min_complete: u32,
         flag: sys::IoringEnterFlags,
-        arg: Option<&T>,
+        arg: Option<&sys::KernelSigSet>,
     ) -> io::Result<usize> {
-        let arg = arg
-            .map(|arg| cast_ptr(arg).cast())
-            .unwrap_or_else(ptr::null);
-        let size = core::mem::size_of::<T>();
-        let result = sys::io_uring_enter(self.fd, to_submit, min_complete, flag, arg, size)?;
+        let result = sys::io_uring_enter_sigmask(self.fd, to_submit, min_complete, flag, arg)?;
+        Ok(result as _)
+    }
+
+    /// Initiate and/or complete asynchronous I/O. This is a low-level wrapper around
+    /// `io_uring_enter` - see `man io_uring_enter` (or [its online
+    /// version](https://manpages.debian.org/unstable/liburing-dev/io_uring_enter.2.en.html) for
+    /// more details.
+    ///
+    /// You will probably want to use a more high-level API such as
+    /// [`submit`](Self::submit) or [`submit_and_wait`](Self::submit_and_wait).
+    ///
+    /// # Safety
+    ///
+    /// This provides a raw interface so developer must ensure that parameters are correct.
+    pub unsafe fn enter_arg(
+        &self,
+        to_submit: u32,
+        min_complete: u32,
+        flag: sys::IoringEnterFlags,
+        arg: Option<&sys::io_uring_getevents_arg>,
+    ) -> io::Result<usize> {
+        let result = sys::io_uring_enter_arg(self.fd, to_submit, min_complete, flag, arg)?;
         Ok(result as _)
     }
 
@@ -138,7 +156,7 @@ impl<'a> Submitter<'a> {
             }
         }
 
-        unsafe { self.enter::<sys::sigset_t>(len as _, want as _, flags, None) }
+        unsafe { self.enter_sigmask(len as _, want as _, flags, None) }
     }
 
     pub fn submit_with_args(
@@ -165,12 +183,12 @@ impl<'a> Submitter<'a> {
             }
         }
 
-        unsafe { self.enter(len as _, want as _, flags, Some(&args.args)) }
+        unsafe { self.enter_arg(len as _, want as _, flags, Some(&args.args)) }
     }
 
     /// Wait for the submission queue to have free entries.
     pub fn squeue_wait(&self) -> io::Result<usize> {
-        unsafe { self.enter::<sys::sigset_t>(0, 0, sys::IoringEnterFlags::SQ_WAIT, None) }
+        unsafe { self.enter_sigmask(0, 0, sys::IoringEnterFlags::SQ_WAIT, None) }
     }
 
     /// Register in-memory fixed buffers for I/O with the kernel. You can use these buffers with the
@@ -210,26 +228,26 @@ impl<'a> Submitter<'a> {
     pub unsafe fn register_buffers_update(
         &self,
         offset: u32,
-        bufs: &[libc::iovec],
+        bufs: &[sys::iovec],
         tags: Option<&[u64]>,
     ) -> io::Result<()> {
         let nr = tags
             .as_ref()
             .map_or(bufs.len(), |tags| bufs.len().min(tags.len()));
 
-        let rr = sys::io_uring_rsrc_update2 {
-            nr: nr as _,
-            data: bufs.as_ptr() as _,
-            tags: tags.map(|tags| tags.as_ptr() as _).unwrap_or(0),
-            offset,
-            ..Default::default()
-        };
+        let mut rr = sys::io_uring_rsrc_update2::default();
+        rr.nr = nr as _;
+        rr.data = sys::io_uring_ptr::new(bufs.as_ptr() as _);
+        rr.tags = tags
+            .map(|tags| sys::io_uring_ptr::new(tags.as_ptr() as _))
+            .unwrap_or(sys::io_uring_ptr::null());
+        rr.offset = offset;
 
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_BUFFERS_UPDATE,
+            self.fd,
+            sys::IoringRegisterOp::RegisterBuffersUpdate,
             cast_ptr::<sys::io_uring_rsrc_update2>(&rr).cast(),
-            std::mem::size_of::<sys::io_uring_rsrc_update2>() as _,
+            mem::size_of::<sys::io_uring_rsrc_update2>() as _,
         )
         .map(drop)
     }
@@ -253,18 +271,16 @@ impl<'a> Submitter<'a> {
     /// Developers must ensure that the `iov_base` and `iov_len` values are valid and will
     /// be valid until buffers are unregistered or the ring destroyed, otherwise undefined
     /// behaviour may occur.
-    pub unsafe fn register_buffers2(&self, bufs: &[libc::iovec], tags: &[u64]) -> io::Result<()> {
-        let rr = sys::io_uring_rsrc_register {
-            nr: bufs.len().min(tags.len()) as _,
-            data: bufs.as_ptr() as _,
-            tags: tags.as_ptr() as _,
-            ..Default::default()
-        };
+    pub unsafe fn register_buffers2(&self, bufs: &[sys::iovec], tags: &[u64]) -> io::Result<()> {
+        let mut rr = sys::io_uring_rsrc_register::default();
+        rr.nr = bufs.len().min(tags.len()) as _;
+        rr.data = sys::io_uring_ptr::new(bufs.as_ptr() as _);
+        rr.tags = sys::io_uring_ptr::new(tags.as_ptr() as _);
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_BUFFERS2,
+            self.fd,
+            sys::IoringRegisterOp::RegisterBuffers2,
             cast_ptr::<sys::io_uring_rsrc_register>(&rr).cast(),
-            std::mem::size_of::<sys::io_uring_rsrc_register>() as _,
+            mem::size_of::<sys::io_uring_rsrc_register>() as _,
         )
         .map(drop)
     }
@@ -279,16 +295,14 @@ impl<'a> Submitter<'a> {
     ///
     /// Available since Linux 5.13.
     pub fn register_buffers_sparse(&self, nr: u32) -> io::Result<()> {
-        let rr = sys::io_uring_rsrc_register {
-            nr,
-            flags: sys::IORING_RSRC_REGISTER_SPARSE,
-            ..Default::default()
-        };
+        let mut rr = sys::io_uring_rsrc_register::default();
+        rr.nr = nr;
+        rr.flags = sys::IoringRsrcFlags::REGISTER_SPARSE;
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_BUFFERS2,
+            self.fd,
+            sys::IoringRegisterOp::RegisterBuffers2,
             cast_ptr::<sys::io_uring_rsrc_register>(&rr).cast(),
-            std::mem::size_of::<sys::io_uring_rsrc_register>() as _,
+            mem::size_of::<sys::io_uring_rsrc_register>() as _,
         )
         .map(drop)
     }
@@ -299,13 +313,11 @@ impl<'a> Submitter<'a> {
     /// Registering a file table is a prerequisite for using any request that
     /// uses direct descriptors.
     pub fn register_files_sparse(&self, nr: u32) -> io::Result<()> {
-        let rr = sys::io_uring_rsrc_register {
-            nr,
-            flags: sys::IoringRsrcFlags::REGISTER_SPARSE,
-            resv2: 0,
-            data: 0,
-            tags: 0,
-        };
+        let mut rr = sys::io_uring_rsrc_register::default();
+        rr.nr = nr;
+        rr.flags = sys::IoringRsrcFlags::REGISTER_SPARSE;
+        rr.data = sys::io_uring_ptr::null();
+        rr.tags = sys::io_uring_ptr::null();
         execute(
             self.fd,
             sys::IoringRegisterOp::RegisterFiles2,
@@ -339,11 +351,9 @@ impl<'a> Submitter<'a> {
     /// You can also perform this asynchronously with the
     /// [`FilesUpdate`](crate::opcode::FilesUpdate) opcode.
     pub fn register_files_update(&self, offset: u32, fds: &[RawFd]) -> io::Result<()> {
-        let fu = sys::io_uring_files_update {
-            offset,
-            resv: 0,
-            fds: fds.as_ptr() as _,
-        };
+        let mut fu = sys::io_uring_files_update::default();
+        fu.offset = offset;
+        fu.fds = sys::io_uring_ptr::new(fds.as_ptr() as _);
         execute(
             self.fd,
             sys::IoringRegisterOp::RegisterFilesUpdate,
@@ -383,11 +393,11 @@ impl<'a> Submitter<'a> {
     // which CI runs) only has Linux 5.4.
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let io_uring = io_uring::IoUring::new(1)?;
-    /// let mut probe = io_uring::Probe::new();
+    /// let io_uring = rustix_uring::IoUring::new(1)?;
+    /// let mut probe = rustix_uring::Probe::new();
     /// io_uring.submitter().register_probe(&mut probe)?;
     ///
-    /// if probe.is_supported(io_uring::opcode::Read::CODE) {
+    /// if probe.is_supported(rustix_uring::opcode::Read::CODE) {
     ///     println!("Reading is supported!");
     /// }
     /// # Ok(())
@@ -496,12 +506,12 @@ impl<'a> Submitter<'a> {
     /// Tell io_uring on what CPUs the async workers can run. By default, async workers
     /// created by io_uring will inherit the CPU mask of its parent. This is usually
     /// all the CPUs in the system, unless the parent is being run with a limited set.
-    pub fn register_iowq_aff(&self, cpu_set: &libc::cpu_set_t) -> io::Result<()> {
+    pub fn register_iowq_aff(&self, cpu_set: &rustix::thread::CpuSet) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_REGISTER_IOWQ_AFF,
-            cpu_set as *const _ as *const libc::c_void,
-            mem::size_of::<libc::cpu_set_t>() as u32,
+            self.fd,
+            sys::IoringRegisterOp::RegisterIowqAff,
+            (cpu_set as *const rustix::thread::CpuSet).cast(),
+            mem::size_of::<rustix::thread::CpuSet>() as u32,
         )
         .map(drop)
     }
@@ -509,8 +519,8 @@ impl<'a> Submitter<'a> {
     /// Undoes a CPU mask previously set with register_iowq_aff
     pub fn unregister_iowq_aff(&self) -> io::Result<()> {
         execute(
-            self.fd.as_raw_fd(),
-            sys::IORING_UNREGISTER_IOWQ_AFF,
+            self.fd,
+            sys::IoringRegisterOp::UnregisterIowqAff,
             ptr::null(),
             0,
         )
@@ -549,7 +559,7 @@ impl<'a> Submitter<'a> {
     /// otherwise undefined behaviour may occur.
     pub unsafe fn register_buf_ring(
         &self,
-        ring_addr: u64,
+        ring_addr: *mut ffi::c_void,
         ring_entries: u16,
         bgid: u16,
     ) -> io::Result<()> {
@@ -557,12 +567,10 @@ impl<'a> Submitter<'a> {
         // the tail to be specified, so to try and avoid further confusion, we limit the
         // ring_entries to u16 here too. The value is actually limited to 2^15 (32768) but we can
         // let the kernel enforce that.
-        let arg = sys::io_uring_buf_reg {
-            ring_addr,
-            ring_entries: ring_entries as _,
-            bgid,
-            ..Default::default()
-        };
+        let mut arg = sys::io_uring_buf_reg::default();
+        arg.ring_addr = ring_addr.into();
+        arg.ring_entries = ring_entries as _;
+        arg.bgid = bgid;
         execute(
             self.fd,
             sys::IoringRegisterOp::RegisterPbufRing,
@@ -575,12 +583,10 @@ impl<'a> Submitter<'a> {
     ///
     /// Available since 5.19.
     pub fn unregister_buf_ring(&self, bgid: u16) -> io::Result<()> {
-        let arg = sys::io_uring_buf_reg {
-            ring_addr: 0,
-            ring_entries: 0,
-            bgid,
-            ..Default::default()
-        };
+        let mut arg = sys::io_uring_buf_reg::default();
+        arg.ring_addr = sys::io_uring_ptr::null();
+        arg.ring_entries = 0;
+        arg.bgid = bgid;
         execute(
             self.fd,
             sys::IoringRegisterOp::UnregisterPbufRing,
@@ -623,17 +629,15 @@ impl<'a> Submitter<'a> {
             tv_sec: -1,
             tv_nsec: -1,
         });
-        let user_data = builder.user_data.unwrap_or(0);
+        let user_data = builder.user_data;
         let flags = sys::IoringAsyncCancelFlags::from_bits_retain(builder.flags.bits());
         let fd = builder.to_fd();
 
-        let arg = sys::io_uring_sync_cancel_reg {
-            addr: user_data,
-            fd,
-            flags,
-            timeout: timespec,
-            ..Default::default()
-        };
+        let mut arg = sys::io_uring_sync_cancel_reg::default();
+        arg.addr = user_data;
+        arg.fd = fd;
+        arg.flags = flags;
+        arg.timeout = timespec;
 
         execute(
             self.fd,

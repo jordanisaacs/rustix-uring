@@ -20,14 +20,14 @@ To use `io-uring` crate, first add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-io-uring = "0.6"
+rustix-uring = "0.1"
 ```
 
 Next we can start using `io-uring` crate.
 The following is quick introduction using `Read` for file.
 
 ```rust
-use io_uring::{opcode, types, IoUring};
+use rustix_uring::{opcode, types, IoUring};
 use std::os::unix::io::AsRawFd;
 use std::{fs, io};
 
@@ -53,7 +53,7 @@ fn main() -> io::Result<()> {
 
     let cqe = ring.completion().next().expect("completion queue is empty");
 
-    assert_eq!(cqe.user_data(), 0x42);
+    assert_eq!(cqe.user_data().u64_(), 0x42);
     assert!(cqe.result() >= 0, "read error: {}", cqe.result());
 
     Ok(())

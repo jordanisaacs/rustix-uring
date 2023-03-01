@@ -75,7 +75,7 @@ pub fn test_register_sync_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>
         .register_sync_cancel(None, CancelBuilder::user_data(USER_DATA_0))?;
     let completions = wait_get_completions(ring, 1).unwrap();
     assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].user_data(), USER_DATA_0);
+    assert_eq!(completions[0].user_data().u64_(), USER_DATA_0);
     assert_eq!(completions[0].result(), -libc::ECANCELED);
 
     // Cancel the second and third operation by user_data.
@@ -84,7 +84,7 @@ pub fn test_register_sync_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>
     let completions = wait_get_completions(ring, 2).unwrap();
     assert_eq!(completions.len(), 2);
     for completion in completions {
-        assert_eq!(completion.user_data(), USER_DATA_1);
+        assert_eq!(completion.user_data().u64_(), USER_DATA_1);
         assert_eq!(completion.result(), -libc::ECANCELED);
     }
 
@@ -94,7 +94,7 @@ pub fn test_register_sync_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>
     let completions = wait_get_completions(ring, 2).unwrap();
     assert_eq!(completions.len(), 2);
     for completion in completions {
-        assert_eq!(completion.user_data(), USER_DATA_2);
+        assert_eq!(completion.user_data().u64_(), USER_DATA_2);
         assert_eq!(completion.result(), -libc::ECANCELED);
     }
 
@@ -103,7 +103,7 @@ pub fn test_register_sync_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>
         .register_sync_cancel(None, CancelBuilder::fd(types::Fixed(0)))?;
     let completions = wait_get_completions(ring, 1).unwrap();
     assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].user_data(), USER_DATA_3);
+    assert_eq!(completions[0].user_data().u64_(), USER_DATA_3);
     assert_eq!(completions[0].result(), -libc::ECANCELED);
 
     // Cancel the two remaining fixed_fd operations by the fixed_fd.
@@ -111,7 +111,7 @@ pub fn test_register_sync_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>
         .register_sync_cancel(None, CancelBuilder::fd(types::Fixed(0)).all())?;
     let completions = wait_get_completions(ring, 2).unwrap();
     for completion in completions {
-        assert_eq!(completion.user_data(), USER_DATA_3);
+        assert_eq!(completion.user_data().u64_(), USER_DATA_3);
         assert_eq!(completion.result(), -libc::ECANCELED);
     }
 
@@ -121,7 +121,7 @@ pub fn test_register_sync_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>
     let completions = wait_get_completions(ring, 1).unwrap();
     assert_eq!(completions.len(), 3);
     for completion in completions {
-        assert_eq!(completion.user_data(), USER_DATA_4);
+        assert_eq!(completion.user_data().u64_(), USER_DATA_4);
         assert_eq!(completion.result(), -libc::ECANCELED);
     }
 
@@ -167,7 +167,7 @@ pub fn test_register_sync_cancel_any<S: squeue::EntryMarker, C: cqueue::EntryMar
     }
     let mut user_data_entries = completions
         .into_iter()
-        .map(|c| c.user_data())
+        .map(|c| c.user_data().u64_())
         .collect::<Vec<u64>>();
     user_data_entries.sort();
     assert_eq!(
@@ -215,7 +215,7 @@ pub fn test_register_sync_cancel_unsubmitted<S: squeue::EntryMarker, C: cqueue::
 
     let completions = wait_get_completions(ring, 1)?;
     assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].user_data(), USER_DATA);
+    assert_eq!(completions[0].user_data().u64_(), USER_DATA);
     assert_eq!(completions[0].result(), -libc::ECANCELED);
 
     Ok(())

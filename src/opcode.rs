@@ -369,7 +369,7 @@ opcode! {
     /// If not found, `result` will return `-libc::ENOENT`.
     #[derive(Debug)]
     pub struct PollRemove {
-        user_data: { u64 }
+        user_data: { sys::io_uring_user_data }
         ;;
     }
 
@@ -381,7 +381,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.addr.ptr = user_data as _;
+        sqe.addr_or_splice_off_in.user_data = user_data;
         Entry(sqe)
     }
 }
@@ -421,12 +421,12 @@ opcode! {
 opcode! {
     /// Send a message on a socket, equivalent to `send(2)`.
     ///
-    /// fd must be set to the socket file descriptor, addr must contains a pointer to the msghdr
+    /// fd must be set to the socket file descriptor, addr must contains a pointer to the MsgHdr
     /// structure, and flags holds the flags associated with the system call.
     #[derive(Debug)]
     pub struct SendMsg {
         fd: { impl sealed::UseFixed },
-        msg: { *const sys::msghdr },
+        msg: { *const sys::MsgHdr },
         ;;
         ioprio: u16 = 0,
         flags: sys::SendFlags = sys::SendFlags::empty()
@@ -455,7 +455,7 @@ opcode! {
     #[derive(Debug)]
     pub struct RecvMsg {
         fd: { impl sealed::UseFixed },
-        msg: { *mut sys::msghdr },
+        msg: { *mut sys::MsgHdr },
         ;;
         ioprio: u16 = 0,
         flags: sys::RecvFlags = sys::RecvFlags::empty(),
@@ -497,7 +497,7 @@ opcode! {
     /// should issue a new request.
     ///
     /// Unlike [`RecvMsg`], this multishot recvmsg will prepend a struct which describes the layout
-    /// of the rest of the buffer in combination with the initial msghdr structure submitted with
+    /// of the rest of the buffer in combination with the initial MsgHdr structure submitted with
     /// the request. Use [`types::RecvMsgOut`] to parse the data received and access its
     /// components.
     ///
@@ -505,7 +505,7 @@ opcode! {
     #[derive(Debug)]
     pub struct RecvMsgMulti {
         fd: { impl sealed::UseFixed },
-        msg: { *const sys::msghdr },
+        msg: { *const sys::MsgHdr },
         buf_group: { u16 },
         ;;
         ioprio: sys::IoringRecvFlags = sys::IoringRecvFlags::empty(),
@@ -571,7 +571,7 @@ opcode! {
 opcode! {
     /// Attempt to remove an existing [timeout operation](Timeout).
     pub struct TimeoutRemove {
-        user_data: { u64 },
+        user_data: { sys::io_uring_user_data }
         ;;
     }
 
@@ -583,7 +583,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.user_data.u64_ = user_data;
+        sqe.addr_or_splice_off_in.user_data = user_data;
         Entry(sqe)
     }
 }
@@ -592,7 +592,7 @@ opcode! {
     /// Attempt to update an existing [timeout operation](Timeout) with a new timespec.
     /// The optional `count` value of the original timeout value cannot be updated.
     pub struct TimeoutUpdate {
-        user_data: { u64 },
+        user_data: { sys::io_uring_user_data },
         timespec: { *const types::Timespec },
         ;;
         flags: types::TimeoutFlags = types::TimeoutFlags::empty()
@@ -606,8 +606,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.off_or_addr2.off = timespec as _;
-        sqe.addr_or_splice_off_in.addr.ptr = user_data as _;
+        sqe.off_or_addr2.addr2.ptr = timespec as _;
+        sqe.addr_or_splice_off_in.user_data = user_data;
         sqe.op_flags.timeout_flags = sys::IoringTimeoutFlags::from_bits_retain(flags.bits()) | sys::IoringTimeoutFlags::UPDATE;
         Entry(sqe)
     }
@@ -617,8 +617,8 @@ opcode! {
     /// Accept a new connection on a socket, equivalent to `accept4(2)`.
     pub struct Accept {
         fd: { impl sealed::UseFixed },
-        addr: { *mut sys::sockaddr },
-        addrlen: { *mut sys::socklen_t },
+        addr: { *mut sys::SocketAddrOpaque },
+        addrlen: { *mut sys::SocketAddrLen },
         ;;
         file_index: Option<types::DestinationSlot> = None,
         flags: sys::SocketFlags = sys::SocketFlags::empty()
@@ -636,7 +636,7 @@ opcode! {
         sqe.off_or_addr2.addr2.ptr = addrlen as _;
         sqe.op_flags.accept_flags = flags;
         if let Some(dest) = file_index {
-            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index_or_addr_len.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -645,7 +645,7 @@ opcode! {
 opcode! {
     /// Attempt to cancel an already issued request.
     pub struct AsyncCancel {
-        user_data: { u64 }
+        user_data: { sys::io_uring_user_data }
         ;;
 
         // TODO flags
@@ -659,7 +659,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.addr.ptr = user_data as _;
+        sqe.addr_or_splice_off_in.user_data = user_data;
         Entry(sqe)
     }
 }
@@ -693,8 +693,8 @@ opcode! {
     /// Connect a socket, equivalent to `connect(2)`.
     pub struct Connect {
         fd: { impl sealed::UseFixed },
-        addr: { *const sys::sockaddr },
-        addrlen: { sys::socklen_t }
+        addr: { *const sys::SocketAddrOpaque },
+        addrlen: { sys::SocketAddrLen }
         ;;
     }
 
@@ -762,7 +762,7 @@ opcode! {
         sqe.len.len = mode.bits();
         sqe.op_flags.open_flags = flags;
         if let Some(dest) = file_index {
-            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index_or_addr_len.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -788,7 +788,7 @@ opcode! {
             sealed::Target::Fd(fd) => sqe.fd = fd,
             sealed::Target::Fixed(idx) => {
                 sqe.fd = 0;
-                sqe.splice_fd_in_or_file_index.file_index = idx + 1;
+                sqe.splice_fd_in_or_file_index_or_addr_len.file_index = idx + 1;
             }
         }
         Entry(sqe)
@@ -845,7 +845,7 @@ opcode! {
         sqe.fd = dirfd;
         sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
         sqe.len.len = mask.bits();
-        sqe.off_or_addr2.off = statxbuf as _;
+        sqe.off_or_addr2.addr2.ptr = statxbuf as _;
         sqe.op_flags.statx_flags = flags;
         Entry(sqe)
     }
@@ -1004,7 +1004,7 @@ opcode! {
         buf: { *const u8 },
         len: { u32 },
         ;;
-        flags: sys::SendFlags = sys::SendFlags::empty()
+        flags: sys::SendFlags = sys::SendFlags::empty(),
 
         /// Set the destination address, for sending from an unconnected socket.
         ///
@@ -1023,8 +1023,8 @@ opcode! {
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
         sqe.addr_or_splice_off_in.addr.ptr = buf as _;
-        sqe.__bindgen_anon_1.addr2 = dest_addr as _;
-        sqe.__bindgen_anon_5.__bindgen_anon_1.addr_len = dest_addr_len as _;
+        sqe.off_or_addr2.addr2.ptr = dest_addr as _;
+        sqe.splice_fd_in_or_file_index_or_addr_len.addr_len.addr_len = dest_addr_len as _;
         sqe.len.len = len;
         sqe.op_flags.send_flags = flags;
         Entry(sqe)
@@ -1117,9 +1117,9 @@ opcode! {
         sqe.fd = dirfd;
         sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
         sqe.len.len = mem::size_of::<sys::open_how>() as _;
-        sqe.off_or_addr2.off = how as _;
+        sqe.off_or_addr2.addr2.ptr = how as _;
         if let Some(dest) = file_index {
-            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index_or_addr_len.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -1179,7 +1179,7 @@ opcode! {
         sqe.len.len = len;
         sqe.off_or_addr2.off = off_out as _;
 
-        sqe.splice_fd_in_or_file_index.splice_fd_in = match fd_in {
+        sqe.splice_fd_in_or_file_index_or_addr_len.splice_fd_in = match fd_in {
             sealed::Target::Fd(fd) => fd,
             sealed::Target::Fixed(idx) => {
                 flags |= sys::SpliceFlags::FD_IN_FIXED;
@@ -1267,7 +1267,7 @@ opcode! {
         assign_fd!(sqe.fd = fd_out);
         sqe.len.len = len;
 
-        sqe.splice_fd_in_or_file_index.splice_fd_in = match fd_in {
+        sqe.splice_fd_in_or_file_index_or_addr_len.splice_fd_in = match fd_in {
             sealed::Target::Fd(fd) => fd,
             sealed::Target::Fixed(idx) => {
                 flags |= sys::SpliceFlags::FD_IN_FIXED;
@@ -1331,7 +1331,7 @@ opcode! {
         sqe.fd = olddirfd;
         sqe.addr_or_splice_off_in.addr.ptr = oldpath as _;
         sqe.len.len = newdirfd as _;
-        sqe.off_or_addr2.off = newpath as _;
+        sqe.off_or_addr2.addr2.ptr = newpath as _;
         sqe.op_flags.rename_flags = flags;
         Entry(sqe)
     }
@@ -1443,7 +1443,7 @@ opcode! {
     pub struct MsgRingData {
         ring_fd: { impl sealed::UseFd },
         result: { i32 },
-        user_data: { u64 },
+        user_data: { sys::io_uring_user_data },
         user_flags: { Option<u32> },
         ;;
         opcode_flags: sys::IoringMsgringFlags = sys::IoringMsgringFlags::empty()
@@ -1459,10 +1459,10 @@ opcode! {
         sqe.addr_or_splice_off_in.msgring_cmd = sys::IoringMsgringCmds::Data;
         sqe.fd = ring_fd;
         sqe.len.len = result as u32;
-        sqe.off_or_addr2.user_data.u64_ = user_data;
+        sqe.off_or_addr2.user_data = user_data;
         sqe.op_flags.msg_ring_flags = opcode_flags;
         if let Some(flags) = user_flags {
-            sqe.splice_fd_in_or_file_index.file_index = flags;
+            sqe.splice_fd_in_or_file_index_or_addr_len.file_index = flags;
             unsafe {sqe.op_flags.msg_ring_flags |= sys::IoringMsgringFlags::FLAGS_PASS};
         }
         Entry(sqe)
@@ -1488,7 +1488,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = builder.to_fd();
-        sqe.addr_or_splice_off_in.user_data.u64_ = builder.user_data.unwrap_or(0);
+        sqe.addr_or_splice_off_in.user_data = builder.user_data;
         sqe.op_flags.cancel_flags = sys::IoringAsyncCancelFlags::from_bits_retain(builder.flags.bits());
         Entry(sqe)
     }
@@ -1518,9 +1518,9 @@ opcode! {
         sqe.off_or_addr2.cmd_op.cmd_op = cmd_op;
         unsafe { *sqe.addr3_or_cmd.cmd.as_mut().as_mut_ptr().cast::<[u8; 16]>() = cmd };
         if let Some(buf_index) = buf_index {
-            sqe.__bindgen_anon_4.buf_index = buf_index;
+            sqe.buf.buf_index = buf_index;
             unsafe {
-                sqe.__bindgen_anon_3.uring_cmd_flags |= sys::IORING_URING_CMD_FIXED;
+                sqe.op_flags.uring_cmd_flags |= sys::IoringUringCmdFlags::FIXED;
             }
         }
         Entry(sqe)
@@ -1554,9 +1554,9 @@ opcode! {
         sqe.off_or_addr2.cmd_op.cmd_op = cmd_op;
         unsafe { *sqe.addr3_or_cmd.cmd.as_mut().as_mut_ptr().cast::<[u8; 16]>() = cmd1 };
         if let Some(buf_index) = buf_index {
-            sqe.__bindgen_anon_4.buf_index = buf_index;
+            sqe.buf.buf_index = buf_index;
             unsafe {
-                sqe.__bindgen_anon_3.uring_cmd_flags |= sys::IORING_URING_CMD_FIXED;
+                sqe.op_flags.uring_cmd_flags |= sys::IoringUringCmdFlags::FIXED;
             }
         }
         Entry128(Entry(sqe), cmd2)
@@ -1594,7 +1594,7 @@ opcode! {
         sqe.len.len = protocol as _;
         sqe.op_flags.rw_flags = flags;
         if let Some(dest) = file_index {
-            sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
+            sqe.splice_fd_in_or_file_index_or_addr_len.file_index = dest.kernel_index_arg();
         }
         Entry(sqe)
     }
@@ -1626,7 +1626,7 @@ opcode! {
         // The user should perform a syscall to get any resulting connection's remote address.
         sqe.op_flags.accept_flags = flags;
         if allocate_file_index {
-            sqe.splice_fd_in_or_file_index.file_index = sys::IORING_FILE_INDEX_ALLOC as u32;
+            sqe.splice_fd_in_or_file_index_or_addr_len.file_index = sys::IORING_FILE_INDEX_ALLOC as u32;
         }
         Entry(sqe)
     }
@@ -1640,7 +1640,7 @@ opcode! {
         ring_fd: { impl sealed::UseFd },
         fixed_slot_src: { types::Fixed },
         dest_slot_index: { types::DestinationSlot },
-        user_data: { u64 },
+        user_data: { sys::io_uring_user_data }
         ;;
         opcode_flags: sys::IoringMsgringFlags = sys::IoringMsgringFlags::empty()
     }
@@ -1654,9 +1654,9 @@ opcode! {
         sqe.opcode = Self::CODE;
         sqe.addr_or_splice_off_in.msgring_cmd = sys::IoringMsgringCmds::SendFd;
         sqe.fd = ring_fd;
-        sqe.off_or_addr2.off = user_data;
+        sqe.off_or_addr2.user_data = user_data;
         sqe.addr3_or_cmd.addr3.addr3 = fixed_slot_src.0 as u64;
-        sqe.splice_fd_in_or_file_index.file_index = dest_slot_index.kernel_index_arg();
+        sqe.splice_fd_in_or_file_index_or_addr_len.file_index = dest_slot_index.kernel_index_arg();
         sqe.op_flags.msg_ring_flags = opcode_flags;
         Entry(sqe)
     }
@@ -1690,8 +1690,8 @@ opcode! {
         /// previously registered buffer. The buffer need not be aligned with the start of the
         /// registered buffer.
         buf_index: Option<u16> = None,
-        dest_addr: *const sys::sockaddr = core::ptr::null(),
-        dest_addr_len: sys::socklen_t = 0,
+        dest_addr: *const sys::SocketAddrStorage = core::ptr::null(),
+        dest_addr_len: sys::SocketAddrLen = 0,
         flags: sys::SendFlags = sys::SendFlags::empty(),
         zc_flags: sys::IoringSendFlags = sys::IoringSendFlags::empty(),
     }
@@ -1713,7 +1713,7 @@ opcode! {
             unsafe { sqe.ioprio.send_flags |= sys::IoringSendFlags::FIXED_BUF; }
         }
         sqe.off_or_addr2.addr2.ptr = dest_addr as _;
-        sqe.splice_fd_in_or_file_index.addr_len.addr_len = dest_addr_len as _;
+        sqe.splice_fd_in_or_file_index_or_addr_len.addr_len.addr_len = dest_addr_len as _;
         Entry(sqe)
     }
 }
@@ -1723,12 +1723,12 @@ opcode! {
 opcode! {
     /// Send a zerocopy message on a socket, equivalent to `send(2)`.
     ///
-    /// fd must be set to the socket file descriptor, addr must contains a pointer to the msghdr
+    /// fd must be set to the socket file descriptor, addr must contains a pointer to the MsgHdr
     /// structure, and flags holds the flags associated with the system call.
     #[derive(Debug)]
     pub struct SendMsgZc {
         fd: { impl sealed::UseFixed },
-        msg: { *const sys::msghdr },
+        msg: { *const sys::MsgHdr },
         ;;
         ioprio: u16 = 0,
         flags: sys::SendFlags = sys::SendFlags::empty()
@@ -1766,23 +1766,23 @@ opcode! {
         futex: { *const u32 },
         val: { u64 },
         mask: { u64 },
-        futex_flags: { u32 },
+        futex_flags: { sys::FutexWaitFlags },
         ;;
-        flags: u32 = 0
+        flags: sys::FutexWaitvFlags = sys::FutexWaitvFlags::empty()
     }
 
-    pub const CODE = sys::IORING_OP_FUTEX_WAIT;
+    pub const CODE = sys::IoringOp::FutexWait;
 
     pub fn build(self) -> Entry {
         let FutexWait { futex, val, mask, futex_flags, flags } = self;
 
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
-        sqe.fd = futex_flags as _;
-        sqe.__bindgen_anon_2.addr = futex as usize as _;
-        sqe.__bindgen_anon_1.off = val;
-        unsafe { sqe.__bindgen_anon_6.__bindgen_anon_1.as_mut().addr3 = mask };
-        sqe.__bindgen_anon_3.futex_flags = flags;
+        sqe.fd = futex_flags.bits() as _;
+        sqe.addr_or_splice_off_in.addr.ptr = futex as _;
+        sqe.off_or_addr2.off = val;
+        sqe.addr3_or_cmd.addr3.addr3 = mask;
+        sqe.op_flags.futex_flags = flags;
         Entry(sqe)
     }
 }
@@ -1800,23 +1800,23 @@ opcode! {
         futex: { *const u32 },
         val: { u64 },
         mask: { u64 },
-        futex_flags: { u32 },
+        futex_flags: { sys::FutexWaitFlags },
         ;;
-        flags: u32 = 0
+        flags: sys::FutexWaitvFlags = sys::FutexWaitvFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_FUTEX_WAKE;
+    pub const CODE = sys::IoringOp::FutexWake;
 
     pub fn build(self) -> Entry {
         let FutexWake { futex, val, mask, futex_flags, flags } = self;
 
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
-        sqe.fd = futex_flags as _;
-        sqe.__bindgen_anon_2.addr = futex as usize as _;
-        sqe.__bindgen_anon_1.off = val;
-        unsafe { sqe.__bindgen_anon_6.__bindgen_anon_1.as_mut().addr3 = mask };
-        sqe.__bindgen_anon_3.futex_flags = flags;
+        sqe.fd = futex_flags.bits() as _;
+        sqe.addr_or_splice_off_in.addr.ptr = futex as _;
+        sqe.off_or_addr2.off = val;
+        sqe.addr3_or_cmd.addr3.addr3 = mask;
+        sqe.op_flags.futex_flags = flags;
         Entry(sqe)
     }
 }
@@ -1832,19 +1832,19 @@ opcode! {
         futexv: { *const types::FutexWaitV },
         nr_futex: { u32 },
         ;;
-        flags: u32 = 0
+        flags: sys::FutexWaitvFlags = sys::FutexWaitvFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_FUTEX_WAITV;
+    pub const CODE = sys::IoringOp::FutexWaitv;
 
     pub fn build(self) -> Entry {
         let FutexWaitV { futexv, nr_futex, flags } = self;
 
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
-        sqe.__bindgen_anon_2.addr = futexv as usize as _;
-        sqe.len = nr_futex;
-        sqe.__bindgen_anon_3.futex_flags = flags;
+        sqe.addr_or_splice_off_in.addr.ptr = futexv as _;
+        sqe.len.len = nr_futex;
+        sqe.op_flags.futex_flags = flags;
         Entry(sqe)
     }
 }
@@ -1859,11 +1859,11 @@ opcode! {
     #[derive(Debug)]
     pub struct FixedFdInstall {
         fd: { types::Fixed },
-        file_flags: { u32 },
+        file_flags: { sys::IoringFixedFdFlags },
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_FIXED_FD_INSTALL;
+    pub const CODE = sys::IoringOp::FixedFdInstall;
 
     pub fn build(self) -> Entry {
         let FixedFdInstall { fd, file_flags } = self;
@@ -1871,8 +1871,8 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = fd.0 as _;
-        sqe.flags = crate::squeue::Flags::FIXED_FILE.bits();
-        sqe.__bindgen_anon_3.install_fd_flags = file_flags;
+        sqe.flags = sys::IoringSqeFlags::FIXED_FILE;
+        sqe.op_flags.install_fd_flags = file_flags;
         Entry(sqe)
     }
 }
@@ -1888,7 +1888,7 @@ opcode! {
         ;;
     }
 
-    pub const CODE = sys::IORING_OP_FTRUNCATE;
+    pub const CODE = sys::IoringOp::Ftruncate;
 
     pub fn build(self) -> Entry {
         let Ftruncate { fd, len } = self;
@@ -1896,7 +1896,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_1.off = len;
+        sqe.off_or_addr2.off = len;
         Entry(sqe)
     }
 }
@@ -1909,11 +1909,11 @@ opcode! {
         fd: { impl sealed::UseFixed },
         buf_group: { u16 },
         ;;
-        flags: i32 = 0,
+        flags: sys::SendFlags = sys::SendFlags::empty(),
         len: u32 = 0
     }
 
-    pub const CODE = sys::IORING_OP_SEND;
+    pub const CODE = sys::IoringOp::Send;
 
     pub fn build(self) -> Entry {
         let SendBundle { fd, len, flags, buf_group } = self;
@@ -1921,11 +1921,11 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.len = len;
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
-        sqe.ioprio |= sys::IORING_RECVSEND_BUNDLE as u16;
-        sqe.flags |= crate::squeue::Flags::BUFFER_SELECT.bits();
-        sqe.__bindgen_anon_4.buf_group = buf_group;
+        sqe.len.len = len;
+        sqe.op_flags.send_flags = flags;
+        sqe.ioprio.send_flags = sys::IoringSendFlags::BUNDLE;
+        sqe.flags |= sys::IoringSqeFlags::BUFFER_SELECT;
+        sqe.buf.buf_group = buf_group;
         Entry(sqe)
     }
 }
@@ -1944,10 +1944,10 @@ opcode! {
         fd: { impl sealed::UseFixed },
         buf_group: { u16 },
         ;;
-        flags: i32 = 0
+        flags: sys::RecvFlags = sys::RecvFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_RECV;
+    pub const CODE = sys::IoringOp::Recv;
 
     pub fn build(self) -> Entry {
         let RecvBundle { fd, buf_group, flags } = self;
@@ -1955,10 +1955,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
-        sqe.flags |= crate::squeue::Flags::BUFFER_SELECT.bits();
-        sqe.ioprio |= sys::IORING_RECVSEND_BUNDLE as u16;
+        sqe.op_flags.recv_flags = flags;
+        sqe.buf.buf_group = buf_group;
+        sqe.flags |= sys::IoringSqeFlags::BUFFER_SELECT;
+        sqe.ioprio.recv_flags = sys::IoringRecvFlags::BUNDLE;
         Entry(sqe)
     }
 }
@@ -1985,10 +1985,10 @@ opcode! {
         fd: { impl sealed::UseFixed },
         buf_group: { u16 },
         ;;
-        flags: i32 = 0
+        flags: sys::RecvFlags = sys::RecvFlags::empty(),
     }
 
-    pub const CODE = sys::IORING_OP_RECV;
+    pub const CODE = sys::IoringOp::Recv;
 
     pub fn build(self) -> Entry {
         let RecvMultiBundle { fd, buf_group, flags } = self;
@@ -1996,11 +1996,10 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.__bindgen_anon_3.msg_flags = flags as _;
-        sqe.__bindgen_anon_4.buf_group = buf_group;
-        sqe.flags |= crate::squeue::Flags::BUFFER_SELECT.bits();
-        sqe.ioprio = sys::IORING_RECV_MULTISHOT as _;
-        sqe.ioprio |= sys::IORING_RECVSEND_BUNDLE as u16;
+        sqe.op_flags.recv_flags = flags;
+        sqe.buf.buf_group = buf_group;
+        sqe.flags |= sys::IoringSqeFlags::BUFFER_SELECT;
+        sqe.ioprio.recv_flags = sys::IoringRecvFlags::MULTISHOT | sys::IoringRecvFlags::BUNDLE;
         Entry(sqe)
     }
 }

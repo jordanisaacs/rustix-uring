@@ -51,8 +51,8 @@ pub struct Entry128(pub(crate) Entry, pub(crate) [u8; 64]);
 
 #[test]
 fn test_entry_sizes() {
-    assert_eq!(mem::size_of::<Entry>(), 64);
-    assert_eq!(mem::size_of::<Entry128>(), 128);
+    assert_eq!(size_of::<Entry>(), 64);
+    assert_eq!(size_of::<Entry128>(), 128);
 }
 
 bitflags! {
@@ -203,7 +203,6 @@ impl<E: EntryMarker> SubmissionQueue<'_, E> {
         // [#197]: https://github.com/tokio-rs/io-uring/issues/197
         atomic::fence(atomic::Ordering::SeqCst);
         unsafe {
-            (*self.queue.flags).load(atomic::Ordering::Relaxed) & sys::IORING_SQ_NEED_WAKEUP != 0
             sys::IoringSqFlags::from_bits_retain(
                 (*self.queue.flags).load(atomic::Ordering::Relaxed),
             )
@@ -342,38 +341,23 @@ impl Entry {
         self
     }
 
-    /// Set the user data as a `u64`. This is an application-supplied value
-    /// that will be passed straight through into the
-    /// [completion queue entry](crate::cqueue::Entry::user_data).
+    /// Set the user data. This is an application-supplied value that will be passed straight
+    /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
-    pub fn user_data(mut self, user_data: u64) -> Entry {
-        self.0.user_data = sys::io_uring_user_data::from_u64(user_data);
+    pub fn user_data(mut self, user_data: impl Into<sys::io_uring_user_data>) -> Entry {
+        self.0.user_data = user_data.into();
         self
     }
 
-    /// Set the user data as a pointer. This is an application-supplied value
-    /// that will be passed straight through into the
-    /// [completion queue entry](crate::cqueue::Entry::user_data).
+    /// Get the previously application-supplied user data.
     #[inline]
-    pub fn user_data_ptr(mut self, user_data: *mut core::ffi::c_void) -> Entry {
-        self.0.user_data = sys::io_uring_user_data::from_ptr(user_data);
-        self
-    }
-
-    /// Get the previously application-supplied user data as a `u64`.
-    #[inline]
-    pub fn get_user_data(&self) -> u64 {
-        self.0.user_data.u64_()
-    }
-
-    /// Get the previously application-supplied user data as a pointer.
-    #[inline]
-    pub fn get_user_data_ptr(&self) -> *mut core::ffi::c_void {
-        self.0.user_data.ptr()
+    pub fn get_user_data(&self) -> sys::io_uring_user_data {
+        self.0.user_data
     }
 
     /// Set the personality of this event. You can obtain a personality using
     /// [`Submitter::register_personality`](crate::Submitter::register_personality).
+    #[inline]
     pub fn personality(mut self, personality: u16) -> Entry {
         self.0.personality = personality;
         self
@@ -415,17 +399,15 @@ impl Entry128 {
     /// Set the user data. This is an application-supplied value that will be passed straight
     /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
-    pub fn user_data(mut self, user_data: u64) -> Entry128 {
-        self.0 .0.user_data = sys::io_uring_user_data::from_u64(user_data);
+    pub fn user_data(mut self, user_data: impl Into<sys::io_uring_user_data>) -> Entry128 {
+        self.0 .0.user_data = user_data.into();
         self
     }
 
-    /// Set the user data. This is an application-supplied value that will be passed straight
-    /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
+    /// Get the previously application-supplied user data.
     #[inline]
-    pub fn user_data_ptr(mut self, user_data: *mut core::ffi::c_void) -> Entry128 {
-        self.0 .0.user_data = sys::io_uring_user_data::from_ptr(user_data);
-        self
+    pub fn get_user_data(&self) -> sys::io_uring_user_data {
+        self.0 .0.user_data
     }
 
     /// Set the personality of this event. You can obtain a personality using

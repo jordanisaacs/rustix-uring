@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, ptr};
 
-use io_uring::{opcode, squeue, types, Errno, IoUring, SubmissionQueue};
+use rustix_uring::{opcode, squeue, types, Errno, IoUring, SubmissionQueue};
 use slab::Slab;
 
 #[derive(Clone, Debug)]
@@ -34,7 +34,7 @@ impl AcceptCount {
         AcceptCount {
             entry: opcode::Accept::new(types::Fd(fd), ptr::null_mut(), ptr::null_mut())
                 .build()
-                .user_data(token as _),
+                .user_data(token as u64),
             count,
         }
     }
@@ -101,7 +101,7 @@ fn main() -> anyhow::Result<()> {
 
         for cqe in &mut cq {
             let ret = cqe.result();
-            let token_index = cqe.user_data() as usize;
+            let token_index = cqe.user_data().u64_() as usize;
 
             if ret < 0 {
                 eprintln!(
@@ -124,7 +124,7 @@ fn main() -> anyhow::Result<()> {
 
                     let poll_e = opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)
                         .build()
-                        .user_data(poll_token as _);
+                        .user_data(poll_token as u64);
 
                     unsafe {
                         if sq.push(&poll_e).is_err() {
@@ -147,7 +147,7 @@ fn main() -> anyhow::Result<()> {
 
                     let read_e = opcode::Recv::new(types::Fd(fd), buf.as_mut_ptr(), buf.len() as _)
                         .build()
-                        .user_data(token_index as _);
+                        .user_data(token_index as u64);
 
                     unsafe {
                         if sq.push(&read_e).is_err() {
@@ -178,7 +178,7 @@ fn main() -> anyhow::Result<()> {
 
                         let write_e = opcode::Send::new(types::Fd(fd), buf.as_ptr(), len as _)
                             .build()
-                            .user_data(token_index as _);
+                            .user_data(token_index as u64);
 
                         unsafe {
                             if sq.push(&write_e).is_err() {
@@ -202,7 +202,7 @@ fn main() -> anyhow::Result<()> {
 
                         opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)
                             .build()
-                            .user_data(token_index as _)
+                            .user_data(token_index as u64)
                     } else {
                         let offset = offset + write_len;
                         let len = len - offset;
@@ -218,7 +218,7 @@ fn main() -> anyhow::Result<()> {
 
                         opcode::Write::new(types::Fd(fd), buf.as_ptr(), len as _)
                             .build()
-                            .user_data(token_index as _)
+                            .user_data(token_index as u64)
                     };
 
                     unsafe {

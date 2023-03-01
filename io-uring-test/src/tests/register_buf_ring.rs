@@ -276,7 +276,12 @@ impl InnerBufRing {
     }
 
     // Returns vector of buffers for completion results that can return a bundle
-    pub(crate) fn get_bufs(&self, buf_ring: &FixedSizeBufRing, res: u32, flags: u32) -> Vec<GBuf> {
+    pub(crate) fn get_bufs(
+        &self,
+        buf_ring: &FixedSizeBufRing,
+        res: u32,
+        flags: cqueue::Flags,
+    ) -> Vec<GBuf> {
         let mut bid = io_uring::cqueue::buffer_select(flags).unwrap();
         let mut len = res as usize;
         let mut output = Vec::with_capacity(len / self.buf_len);
@@ -562,7 +567,7 @@ where
 
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x01);
+    assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert_eq!(cqes[0].result(), text.len() as i32);
     Ok(())
 }
@@ -599,7 +604,7 @@ where
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), 0x02);
+    assert_eq!(cqes[0].user_data().u64_(), 0x02);
 
     let result = cqes[0].result();
     if result < 0 {

@@ -1,12 +1,12 @@
 [package]
-name = "io-uring"
-version = "0.7.4"
-authors = ["quininer <quininer@live.com>"]
+name = "rustix-uring"
+version = "0.3.0"
+authors = ["Jordan Isaacs <mail@jdisaacs.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/tokio-rs/io-uring"
-homepage = "https://github.com/tokio-rs/io-uring"
-documentation = "https://docs.rs/io-uring"
+repository = "https://github.com/jordanisaacs/rustix-uring"
+homepage = "https://github.com/jordanisaacs/rustix-uring"
+documentation = "https://docs.rs/rustix-uring"
 description = "The low-level `io_uring` userspace interface for Rust"
 categories = [ "asynchronous", "network-programming", "filesystem" ]
 rust-version = "1.63"
@@ -23,7 +23,7 @@ std = ["rustix/std", "bitflags/std"]
 
 [dependencies]
 bitflags = { version = "2.4.0", default-features = false }
-rustix = { version = "0.38.32", default-features = false, features = ["io_uring", "mm"] }
+rustix = { version = "1.0.2", default-features = false, features = ["io_uring", "mm", "thread"] }
 
 [dev-dependencies]
 libc = "0.2.98"

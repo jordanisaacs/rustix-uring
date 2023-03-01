@@ -39,12 +39,12 @@ pub fn test_async_cancel_user_data<S: squeue::EntryMarker, C: cqueue::EntryMarke
     ring.submit_and_wait(entries.len())?;
 
     let mut cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
-    cqes.sort_unstable_by_key(cqueue::Entry::user_data);
+    cqes.sort_unstable_by_key(cqueue::Entry::user_data_u64);
 
     assert_eq!(cqes.len(), entries.len());
 
-    assert_eq!(cqes[0].user_data(), 2003);
-    assert_eq!(cqes[1].user_data(), 2004);
+    assert_eq!(cqes[0].user_data().u64_(), 2003);
+    assert_eq!(cqes[1].user_data().u64_(), 2004);
 
     assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
     assert_eq!(cqes[1].result(), 0); // the number of requests cancelled
@@ -92,9 +92,9 @@ pub fn test_async_cancel_user_data_all<S: squeue::EntryMarker, C: cqueue::EntryM
 
     assert_eq!(cqes.len(), entries.len());
 
-    assert_eq!(cqes[0].user_data(), 2003);
-    assert_eq!(cqes[1].user_data(), 2003);
-    assert_eq!(cqes[2].user_data(), 2004);
+    assert_eq!(cqes[0].user_data().u64_(), 2003);
+    assert_eq!(cqes[1].user_data().u64_(), 2003);
+    assert_eq!(cqes[2].user_data().u64_(), 2004);
 
     assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
     assert_eq!(cqes[1].result(), -libc::ECANCELED); // -ECANCELED
@@ -143,9 +143,9 @@ pub fn test_async_cancel_any<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), entries.len());
 
-    assert_eq!(cqes[0].user_data(), 2003);
-    assert_eq!(cqes[1].user_data(), 2004);
-    assert_eq!(cqes[2].user_data(), 2005);
+    assert_eq!(cqes[0].user_data().u64_(), 2003);
+    assert_eq!(cqes[1].user_data().u64_(), 2004);
+    assert_eq!(cqes[2].user_data().u64_(), 2005);
 
     assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
     assert_eq!(cqes[1].result(), -libc::ECANCELED);
@@ -193,8 +193,8 @@ pub fn test_async_cancel_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), entries.len());
 
-    assert_eq!(cqes[0].user_data(), 2003);
-    assert_eq!(cqes[1].user_data(), 2004);
+    assert_eq!(cqes[0].user_data().u64_(), 2003);
+    assert_eq!(cqes[1].user_data().u64_(), 2004);
 
     assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
     assert_eq!(cqes[1].result(), 0);
@@ -243,9 +243,9 @@ pub fn test_async_cancel_fd_all<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), entries.len());
 
-    assert_eq!(cqes[0].user_data(), 2003);
-    assert_eq!(cqes[1].user_data(), 2004);
-    assert_eq!(cqes[2].user_data(), 2005);
+    assert_eq!(cqes[0].user_data().u64_(), 2003);
+    assert_eq!(cqes[1].user_data().u64_(), 2004);
+    assert_eq!(cqes[2].user_data().u64_(), 2005);
 
     assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
     assert_eq!(cqes[1].result(), -libc::ECANCELED);

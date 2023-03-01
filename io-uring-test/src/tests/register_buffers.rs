@@ -3,10 +3,9 @@ use io_uring::{
     cqueue,
     opcode::{ReadFixed, WriteFixed},
     squeue,
-    types::Fd,
+    types::{iovec, Fd},
     IoUring,
 };
-use libc::iovec;
 use std::{
     fs::File,
     io::{self, IoSliceMut},
@@ -23,19 +22,23 @@ pub fn test_register_buffers<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
     test: &Test,
 ) -> anyhow::Result<()> {
-    _test_register_buffers(
-        ring,
-        test,
-        "register_buffers",
-        None,
-        |ring, iovecs, _| unsafe { ring.submitter().register_buffers(&iovecs) },
-    )?;
+    _test_register_buffers(ring, test, "register_buffers", None, |ring, iovecs, _| {
+        unsafe {
+            ring.submitter().register_buffers(&iovecs)?;
+        };
+        Ok(())
+    })?;
     _test_register_buffers(
         ring,
         test,
         "register_buffers2",
         ring.params().is_feature_resource_tagging(),
-        |ring, iovecs, tags| unsafe { ring.submitter().register_buffers2(iovecs, tags) },
+        |ring, iovecs, tags| {
+            unsafe {
+                ring.submitter().register_buffers2(iovecs, tags)?;
+            };
+            Ok(())
+        },
     )?;
     _test_register_buffers(
         ring,
@@ -45,7 +48,10 @@ pub fn test_register_buffers<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         |ring, iovecs, _| {
             let submitter = ring.submitter();
             submitter.register_buffers_sparse(iovecs.len() as _)?;
-            unsafe { submitter.register_buffers_update(0, iovecs, None) }
+            unsafe {
+                submitter.register_buffers_update(0, iovecs, None)?;
+            }
+            Ok(())
         },
     )?;
 
@@ -131,7 +137,7 @@ fn _test_register_buffers<
     // The file should have saved all of the data now
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     cqes.iter().enumerate().for_each(|(index, ce)| {
-        assert!(ce.user_data() < BUFFERS as u64);
+        assert!(ce.user_data().u64_() < BUFFERS as u64);
         assert_eq!(
             ce.result(),
             BUF_SIZE as i32,
@@ -169,7 +175,7 @@ fn _test_register_buffers<
     // The data should be back in the buffers
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     cqes.iter().enumerate().for_each(|(index, ce)| {
-        assert!(ce.user_data() < BUFFERS as u64);
+        assert!(ce.user_data().u64_() < BUFFERS as u64);
         assert_eq!(
             ce.result(),
             BUF_SIZE as i32,
@@ -206,7 +212,7 @@ pub fn test_register_buffers_update<S: squeue::EntryMarker, C: cqueue::EntryMark
     let (read, mut write) = create_pipe()?;
     let mut buf = [0xde, 0xed, 0xbe, 0xef];
     let mut tags = [BUFFER_TAG];
-    let iovecs = [libc::iovec {
+    let iovecs = [iovec {
         iov_len: buf.len(),
         iov_base: buf.as_mut_ptr() as _,
     }];
@@ -250,7 +256,7 @@ pub fn test_register_buffers_update<S: squeue::EntryMarker, C: cqueue::EntryMark
     };
 
     // We should get the correct user_data
-    if cqe.user_data() != 42 {
+    if cqe.user_data().u64_() != 42 {
         return Err(anyhow::anyhow!("unexpected completion queue entry"));
     }
 
@@ -286,7 +292,7 @@ pub fn test_register_buffers_update<S: squeue::EntryMarker, C: cqueue::EntryMark
 
     // We should get a cqe with the first tag because we registered a
     // new buffer at an index where a buffer was already registered.
-    if cqe.user_data() != BUFFER_TAG {
+    if cqe.user_data().u64_() != BUFFER_TAG {
         return Err(anyhow::anyhow!(
             "expected completion queue to contain a buffer unregistered event"
         ));
@@ -304,7 +310,7 @@ pub fn test_register_buffers_update<S: squeue::EntryMarker, C: cqueue::EntryMark
     };
 
     // We should get the correct user_data
-    if cqe.user_data() != 42 {
+    if cqe.user_data().u64_() != 42 {
         return Err(anyhow::anyhow!("unexpected completion queue entry"));
     }
 
@@ -340,7 +346,11 @@ fn check_only_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 ) -> Result<(), anyhow::Error> {
     ring.submit_and_wait(1)?;
 
-    if Into::<cqueue::Entry>::into(ring.completion().next().unwrap()).user_data() == TIMEOUT_TAG {
+    if Into::<cqueue::Entry>::into(ring.completion().next().unwrap())
+        .user_data()
+        .u64_()
+        == TIMEOUT_TAG
+    {
         // There should not be any more entries in the queue
         if ring.completion().next().is_none() {
             return Ok(());

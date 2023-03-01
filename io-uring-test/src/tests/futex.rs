@@ -1,15 +1,11 @@
 use crate::Test;
 use io_uring::types::FutexWaitV;
 use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix::io_uring::FutexWaitFlags;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{io, ptr, thread};
-
-// Not defined by libc.
-//
-// From: https://github.com/torvalds/linux/blob/v6.7/include/uapi/linux/futex.h#L63
-const FUTEX2_SIZE_U32: u32 = 2;
 
 const INIT_VAL: u32 = 0xDEAD_BEEF;
 
@@ -54,7 +50,7 @@ pub fn test_futex_wait<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         // must be 32-bit. Converting directly from c_int to u64 will yield `u64::MAX`, which is
         // invalid.
         libc::FUTEX_BITSET_MATCH_ANY as u32 as u64,
-        FUTEX2_SIZE_U32,
+        FutexWaitFlags::SIZE_U32,
     );
 
     unsafe {
@@ -76,7 +72,7 @@ pub fn test_futex_wait<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
 
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), USER_DATA);
+    assert_eq!(cqes[0].user_data().u64_(), USER_DATA);
     assert_eq!(cqes[0].result(), 0);
 
     Ok(())
@@ -117,7 +113,7 @@ pub fn test_futex_wake<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         1,
         // NB. See comments above for why it cannot be a single `as u64`.
         libc::FUTEX_BITSET_MATCH_ANY as u32 as u64,
-        FUTEX2_SIZE_U32,
+        FutexWaitFlags::SIZE_U32,
     );
     unsafe {
         let mut queue = ring.submission();
@@ -128,7 +124,7 @@ pub fn test_futex_wake<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring.submit_and_wait(1)?;
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), USER_DATA);
+    assert_eq!(cqes[0].user_data().u64_(), USER_DATA);
     assert_eq!(cqes[0].result(), 1);
 
     wait_thread.join().unwrap();
@@ -158,7 +154,7 @@ pub fn test_futex_waitv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         *waitv = FutexWaitV::new()
             .val(INIT_VAL as u64)
             .uaddr(std::ptr::from_ref(futex) as _)
-            .flags(FUTEX2_SIZE_U32);
+            .flags(FutexWaitFlags::SIZE_U32);
     }
 
     let futex_waitv_e = opcode::FutexWaitV::new(waitv.as_ptr().cast(), waitv.len() as _);
@@ -180,7 +176,7 @@ pub fn test_futex_waitv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring.submit_and_wait(1)?;
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
-    assert_eq!(cqes[0].user_data(), USER_DATA);
+    assert_eq!(cqes[0].user_data().u64_(), USER_DATA);
     assert_eq!(cqes[0].result(), TRIGGER_IDX as _);
 
     Ok(())

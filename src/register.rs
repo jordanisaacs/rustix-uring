@@ -140,17 +140,15 @@ impl Restriction {
 ///
 /// File descriptors can be skipped if they are set to `SKIP_FILE`.
 /// Skipping an fd will not touch the file associated with the previous fd at that index.
-pub const SKIP_FILE: BorrowedFd<'static> = rustix::io_uring::io_uring_register_files_skip();
+pub const SKIP_FILE: BorrowedFd<'static> = rustix::io_uring::IORING_REGISTER_FILES_SKIP;
 
 #[test]
 fn test_probe_layout() {
     use std::alloc::Layout;
-    use std::mem;
 
     let probe = Probe::new();
     assert_eq!(
-        Layout::new::<sys::io_uring_probe>().size()
-            + mem::size_of::<sys::io_uring_probe_op>() * 256,
+        Layout::new::<sys::io_uring_probe>().size() + size_of::<sys::io_uring_probe_op>() * 256,
         Layout::for_value(&probe.0).size()
     );
     assert_eq!(
