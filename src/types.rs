@@ -212,7 +212,7 @@ impl From<std::time::Duration> for Timespec {
 /// Note that arguments that exceed their lifetime will fail to compile.
 ///
 /// ```compile_fail
-/// use io_uring::types::{ SubmitArgs, Timespec };
+/// use rustix_uring::types::{ SubmitArgs, Timespec };
 ///
 /// let sigmask: libc::sigset_t = unsafe { std::mem::zeroed() };
 ///
@@ -535,7 +535,7 @@ impl<'buf> RecvMsgOut<'buf> {
 /// ### Examples
 ///
 /// ```
-/// use io_uring::types::{CancelBuilder, Fd, Fixed};
+/// use rustix_uring::types::{CancelBuilder, Fd, Fixed};
 ///
 /// // Match all in-flight requests.
 /// CancelBuilder::any();
