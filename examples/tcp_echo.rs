@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, ptr};
 
-use io_uring::{opcode, squeue, types, Errno, IoUring, SubmissionQueue};
+use rustix_uring::{opcode, squeue, types, Errno, IoUring, SubmissionQueue};
 use slab::Slab;
 
 #[derive(Clone, Debug)]

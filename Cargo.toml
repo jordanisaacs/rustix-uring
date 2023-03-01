@@ -1,12 +1,12 @@
 [package]
-name = "io-uring"
-version = "0.6.2"
-authors = ["quininer <quininer@live.com>"]
+name = "rustix-uring"
+version = "0.1.0"
+authors = ["Jordan Isaacs <mail@jdisaacs.com>"]
 edition = "2021"
 license = "MIT/Apache-2.0"
-repository = "https://github.com/tokio-rs/io-uring"
-homepage = "https://github.com/tokio-rs/io-uring"
-documentation = "https://docs.rs/io-uring"
+repository = "https://github.com/jordanisaacs/rustix-uring"
+homepage = "https://github.com/jordanisaacs/rustix-uring"
+documentation = "https://docs.rs/rustix-uring"
 description = "The low-level `io_uring` userspace interface for Rust"
 categories = [ "asynchronous", "network-programming", "filesystem" ]
 rust-version = "1.63"

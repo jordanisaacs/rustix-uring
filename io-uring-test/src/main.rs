@@ -49,10 +49,10 @@ fn test<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!(
         "ring type: IoUring<{}, {}>",
         std::any::type_name::<S>()
-            .strip_prefix("io_uring::")
+            .strip_prefix("rustix_uring::")
             .unwrap(),
         std::any::type_name::<C>()
-            .strip_prefix("io_uring::")
+            .strip_prefix("rustix_uring::")
             .unwrap(),
     );
     println!("params: {:#?}", ring.params());

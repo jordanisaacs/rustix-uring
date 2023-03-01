@@ -1,4 +1,4 @@
-use io_uring::{opcode, types, IoUring};
+use rustix_uring::{opcode, types, IoUring};
 use std::os::unix::io::AsRawFd;
 use std::{fs, io};
 
