@@ -269,25 +269,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "io-uring"
-version = "0.6.2"
-dependencies = [
- "anyhow",
- "bitflags 2.4.0",
- "libc",
- "rustix",
- "slab",
- "socket2",
-]
-
-[[package]]
 name = "io-uring-bench"
 version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
- "io-uring",
  "iou",
+ "rustix-uring",
  "tempfile",
  "uring-sys",
 ]
@@ -297,10 +285,10 @@ name = "io-uring-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "io-uring",
  "libc",
  "once_cell",
  "rustix",
+ "rustix-uring",
  "socket2",
  "tempfile",
 ]
@@ -524,6 +512,18 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rustix-uring"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags 2.4.0",
+ "libc",
+ "rustix",
+ "slab",
+ "socket2",
 ]
 
 [[package]]
