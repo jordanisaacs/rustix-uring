@@ -1,4 +1,4 @@
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
+use rustix_uring::{cqueue, opcode, squeue, types, IoUring};
 
 use crate::Test;
 

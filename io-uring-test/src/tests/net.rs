@@ -3,9 +3,9 @@ use std::os::fd::FromRawFd;
 use std::os::unix::io::AsRawFd;
 use std::{io, mem};
 
-use io_uring::types::{DestinationSlot, Fd, Fixed, IoringSqeFlags, IoringUserData, RecvMsgOut};
-use io_uring::{cqueue, opcode, squeue, IoUring};
 use once_cell::sync::OnceCell;
+use rustix_uring::types::{DestinationSlot, Fd, Fixed, IoringSqeFlags, IoringUserData, RecvMsgOut};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 use crate::utils;
 use crate::Test;
@@ -170,18 +170,18 @@ pub fn test_tcp_zero_copy_send_recv<S: squeue::EntryMarker, C: cqueue::EntryMark
     assert_eq!(cqes.len(), 3);
     // Send completion is ordered w.r.t recv
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert!(io_uring::cqueue::more(cqes[0].flags()));
+    assert!(rustix_uring::cqueue::more(cqes[0].flags()));
     assert_eq!(cqes[0].result(), text.len() as i32);
 
     // Notification is not ordered w.r.t recv
     match (cqes[1].user_data().u64_(), cqes[2].user_data().u64_()) {
         (0x01, 0x02) => {
-            assert!(!io_uring::cqueue::more(cqes[1].flags()));
+            assert!(!rustix_uring::cqueue::more(cqes[1].flags()));
             assert_eq!(cqes[2].result(), text.len() as i32);
             assert_eq!(&output[..cqes[2].result() as usize], text);
         }
         (0x02, 0x01) => {
-            assert!(!io_uring::cqueue::more(cqes[2].flags()));
+            assert!(!rustix_uring::cqueue::more(cqes[2].flags()));
             assert_eq!(cqes[1].result(), text.len() as i32);
             assert_eq!(&output[..cqes[1].result() as usize], text);
         }
@@ -258,18 +258,18 @@ pub fn test_tcp_zero_copy_send_fixed<S: squeue::EntryMarker, C: cqueue::EntryMar
     assert_eq!(cqes.len(), 3);
     // Send completion is ordered w.r.t recv
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert!(io_uring::cqueue::more(cqes[0].flags()));
+    assert!(rustix_uring::cqueue::more(cqes[0].flags()));
     assert_eq!(cqes[0].result(), text.len() as i32);
 
     // Notification is not ordered w.r.t recv
     match (cqes[1].user_data().u64_(), cqes[2].user_data().u64_()) {
         (0x01, 0x02) => {
-            assert!(!io_uring::cqueue::more(cqes[1].flags()));
+            assert!(!rustix_uring::cqueue::more(cqes[1].flags()));
             assert_eq!(cqes[2].result(), text.len() as i32);
             assert_eq!(&output[..cqes[2].result() as usize], text);
         }
         (0x02, 0x01) => {
-            assert!(!io_uring::cqueue::more(cqes[2].flags()));
+            assert!(!rustix_uring::cqueue::more(cqes[2].flags()));
             assert_eq!(cqes[1].result(), text.len() as i32);
             assert_eq!(&output[..cqes[1].result() as usize], text);
         }
@@ -454,18 +454,18 @@ pub fn test_tcp_zero_copy_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::Ent
 
     // Send completion is ordered w.r.t recv
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert!(io_uring::cqueue::more(cqes[0].flags()));
+    assert!(rustix_uring::cqueue::more(cqes[0].flags()));
     assert_eq!(cqes[0].result(), text.len() as i32);
 
     // Notification is not ordered w.r.t recv
     match (cqes[1].user_data().u64_(), cqes[2].user_data().u64_()) {
         (0x01, 0x02) => {
-            assert!(!io_uring::cqueue::more(cqes[1].flags()));
+            assert!(!rustix_uring::cqueue::more(cqes[1].flags()));
             assert_eq!(cqes[2].result(), text.len() as i32);
             assert_eq!(&buf2[..cqes[2].result() as usize], text);
         }
         (0x02, 0x01) => {
-            assert!(!io_uring::cqueue::more(cqes[2].flags()));
+            assert!(!rustix_uring::cqueue::more(cqes[2].flags()));
             assert_eq!(cqes[1].result(), text.len() as i32);
             assert_eq!(&buf2[..cqes[1].result() as usize], text);
         }
@@ -1370,7 +1370,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     const SIZE: usize = 512;
     let mut buffers = [[0u8; SIZE]; 2];
     for (index, buf) in buffers.iter_mut().enumerate() {
-        let provide_bufs_e = io_uring::opcode::ProvideBuffers::new(
+        let provide_bufs_e = rustix_uring::opcode::ProvideBuffers::new(
             buf.as_mut_ptr(),
             SIZE as i32,
             1,
@@ -1382,7 +1382,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
         .into();
         unsafe { ring.submission().push(&provide_bufs_e)? };
         ring.submitter().submit_and_wait(1)?;
-        let cqes: Vec<io_uring::cqueue::Entry> = ring.completion().map(Into::into).collect();
+        let cqes: Vec<rustix_uring::cqueue::Entry> = ring.completion().map(Into::into).collect();
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 11);
         assert_eq!(cqes[0].result(), 0);
@@ -1396,7 +1396,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     msghdr.msg_controllen = 0;
 
     let recvmsg_e =
-        io_uring::opcode::RecvMsgMulti::new(socket_slot, &msghdr as *const _, BUF_GROUP)
+        rustix_uring::opcode::RecvMsgMulti::new(socket_slot, &msghdr as *const _, BUF_GROUP)
             .build()
             .user_data(IoringUserData { u64_: 77 })
             .into();
@@ -1419,22 +1419,28 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     // Check the completion events for the two UDP messages, plus a trailing
     // CQE signaling that we ran out of buffers.
     ring.submitter().submit_and_wait(3).unwrap();
-    let cqes: Vec<io_uring::cqueue::Entry> = ring.completion().map(Into::into).collect();
+    let cqes: Vec<rustix_uring::cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 3);
     assert_eq!(cqes[0].user_data().u64_(), 77);
     assert!(cqes[0].result() > 0);
-    assert!(io_uring::cqueue::more(cqes[0].flags()));
-    assert_eq!(io_uring::cqueue::buffer_select(cqes[0].flags()), Some(0));
+    assert!(rustix_uring::cqueue::more(cqes[0].flags()));
+    assert_eq!(
+        rustix_uring::cqueue::buffer_select(cqes[0].flags()),
+        Some(0)
+    );
     assert!(cqes[0].flags().bits() != 0);
     assert_eq!(cqes[1].user_data().u64_(), 77);
     assert!(cqes[1].result() > 0);
-    assert!(io_uring::cqueue::more(cqes[1].flags()));
-    assert_eq!(io_uring::cqueue::buffer_select(cqes[1].flags()), Some(1));
+    assert!(rustix_uring::cqueue::more(cqes[1].flags()));
+    assert_eq!(
+        rustix_uring::cqueue::buffer_select(cqes[1].flags()),
+        Some(1)
+    );
     assert!(cqes[1].flags().bits() != 0);
     assert_eq!(cqes[2].user_data().u64_(), 77);
     assert_eq!(cqes[2].result(), -libc::ENOBUFS);
-    assert!(!io_uring::cqueue::more(cqes[2].flags()));
-    assert_eq!(io_uring::cqueue::buffer_select(cqes[2].flags()), None);
+    assert!(!rustix_uring::cqueue::more(cqes[2].flags()));
+    assert_eq!(rustix_uring::cqueue::buffer_select(cqes[2].flags()), None);
     assert_eq!(cqes[2].flags().bits(), 0);
 
     let msg0 = RecvMsgOut::parse(buffers[0].as_slice(), &msghdr).unwrap();

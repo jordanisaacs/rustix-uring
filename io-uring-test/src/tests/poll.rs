@@ -4,8 +4,8 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::thread;
 use std::time::Duration;
 
-use io_uring::types::{Fd, IoringUserData};
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix_uring::types::{Fd, IoringUserData};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 use crate::Test;
 
@@ -259,11 +259,11 @@ pub fn test_eventfd_poll_multi<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
 
     assert_eq!(cqes[0].user_data().u64_(), 0x04);
-    assert!(io_uring::cqueue::more(cqes[0].flags()));
+    assert!(rustix_uring::cqueue::more(cqes[0].flags()));
     assert_eq!(cqes[0].result(), 1);
 
     assert_eq!(cqes[1].user_data().u64_(), 0x04);
-    assert!(io_uring::cqueue::more(cqes[1].flags()));
+    assert!(rustix_uring::cqueue::more(cqes[1].flags()));
     assert_eq!(cqes[1].result(), 1);
 
     Ok(())

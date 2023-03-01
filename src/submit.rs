@@ -267,11 +267,11 @@ impl<'a> Submitter<'a> {
     // which CI runs) only has Linux 5.4.
     /// ```no_run
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let io_uring = io_uring::IoUring::new(1)?;
-    /// let mut probe = io_uring::Probe::new();
+    /// let io_uring = rustix_uring::IoUring::new(1)?;
+    /// let mut probe = rustix_uring::Probe::new();
     /// io_uring.submitter().register_probe(&mut probe)?;
     ///
-    /// if probe.is_supported(io_uring::opcode::Read::CODE) {
+    /// if probe.is_supported(rustix_uring::opcode::Read::CODE) {
     ///     println!("Reading is supported!");
     /// }
     /// # Ok(())

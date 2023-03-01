@@ -1,4 +1,4 @@
-use io_uring::{cqueue, squeue, IoUring};
+use rustix_uring::{cqueue, squeue, IoUring};
 
 use crate::Test;
 

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
-use io_uring::types::{Errno, IoringTimeoutFlags, IoringUserData, SubmitArgs, Timespec};
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix_uring::types::{Errno, IoringTimeoutFlags, IoringUserData, SubmitArgs, Timespec};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 use crate::Test;
 

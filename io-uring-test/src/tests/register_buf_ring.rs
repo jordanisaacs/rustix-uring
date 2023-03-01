@@ -9,8 +9,10 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::atomic::{self, AtomicU16};
 
-use io_uring::types::{BufRingEntry, Errno, Fd, IoringCqeFlags, IoringSqeFlags, IoringUserData};
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix_uring::types::{
+    BufRingEntry, Errno, Fd, IoringCqeFlags, IoringSqeFlags, IoringUserData,
+};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 use crate::Test;
 
@@ -262,7 +264,7 @@ impl InnerBufRing {
         // the same BufRing but wrapped in Rc<_> so the wrapped buf_ring can be passed to the
         // outgoing GBuf.
 
-        let bid = io_uring::cqueue::buffer_select(flags).unwrap();
+        let bid = rustix_uring::cqueue::buffer_select(flags).unwrap();
 
         let len = res as usize;
 

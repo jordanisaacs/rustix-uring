@@ -1,8 +1,8 @@
 use std::os::unix::io::AsRawFd;
 use std::{fs, io};
 
-use io_uring::types::{Fd, IoringUserData};
-use io_uring::{opcode, IoUring};
+use rustix_uring::types::{Fd, IoringUserData};
+use rustix_uring::{opcode, IoUring};
 
 fn main() -> io::Result<()> {
     let mut ring = IoUring::new(8)?;

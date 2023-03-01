@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-io-uring = { path = ".." }
+rustix-uring = { path = ".." }
 libc = { version = "0.2", features = [ "extra_traits" ] }
 anyhow = "1"
 tempfile = "3"

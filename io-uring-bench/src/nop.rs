@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use io_uring::{opcode, IoUring};
+use rustix_uring::{opcode, IoUring};
 
 struct TaskQueue(usize);
 

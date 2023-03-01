@@ -1,7 +1,7 @@
 use std::io::{IoSlice, IoSliceMut};
 
-use io_uring::types::{Fd, IoringSqeFlags, IoringUserData};
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix_uring::types::{Fd, IoringSqeFlags, IoringUserData};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 macro_rules! require {
     (

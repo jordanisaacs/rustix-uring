@@ -1,5 +1,5 @@
-use io_uring::types::{self, DestinationSlot, Fd, Fixed, IoringUserData};
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix_uring::types::{self, DestinationSlot, Fd, Fixed, IoringUserData};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 use crate::Test;
 

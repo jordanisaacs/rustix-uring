@@ -2,8 +2,8 @@ use std::io;
 use std::os::unix::io::AsRawFd;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use io_uring::types::{Fd, IoringSqeFlags};
-use io_uring::{opcode, IoUring};
+use rustix_uring::types::{Fd, IoringSqeFlags};
+use rustix_uring::{opcode, IoUring};
 use tempfile::tempfile;
 
 fn bench_iovec(c: &mut Criterion) {

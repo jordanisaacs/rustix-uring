@@ -4,8 +4,8 @@ use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 
-use io_uring::types::{DestinationSlot, Fd, Fixed, IoringUserData, OFlags, OpenHow};
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use rustix_uring::types::{DestinationSlot, Fd, Fixed, IoringUserData, OFlags, OpenHow};
+use rustix_uring::{cqueue, opcode, squeue, IoUring};
 
 use crate::utils;
 use crate::Test;
@@ -653,7 +653,7 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
     test: &Test,
 ) -> anyhow::Result<()> {
-    use io_uring::types::AtFlags;
+    use rustix_uring::types::AtFlags;
 
     require!(
         test;
