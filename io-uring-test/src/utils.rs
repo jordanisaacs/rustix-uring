@@ -1,5 +1,7 @@
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
 use std::io::{IoSlice, IoSliceMut};
+
+use io_uring::types::{Fd, IoringSqeFlags, IoringUserData};
+use io_uring::{cqueue, opcode, squeue, IoUring};
 
 macro_rules! require {
     (
@@ -36,8 +38,8 @@ pub fn type_name_of<T>(_f: T) -> &'static str {
 
 pub fn write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
-    fd_in: types::Fd,
-    fd_out: types::Fd,
+    fd_in: Fd,
+    fd_out: Fd,
 ) -> anyhow::Result<()> {
     let text = b"The quick brown fox jumps over the lazy dog.";
     let mut output = vec![0; text.len()];
@@ -49,15 +51,15 @@ pub fn write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         let mut queue = ring.submission();
         let write_e = write_e
             .build()
-            .user_data(types::io_uring_user_data { u64_: 0x01 })
-            .flags(types::IoringSqeFlags::IO_LINK)
+            .user_data(IoringUserData { u64_: 0x01 })
+            .flags(IoringSqeFlags::IO_LINK)
             .into();
         queue.push(&write_e).expect("queue is full");
         queue
             .push(
                 &read_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x02 })
+                    .user_data(IoringUserData { u64_: 0x02 })
                     .into(),
             )
             .expect("queue is full");
@@ -80,8 +82,8 @@ pub fn write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
 pub fn writev_readv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
-    fd_in: types::Fd,
-    fd_out: types::Fd,
+    fd_in: Fd,
+    fd_out: Fd,
 ) -> anyhow::Result<()> {
     let text = b"The quick brown fox jumps over the lazy dog.";
     let text2 = "我能吞下玻璃而不伤身体。".as_bytes();
@@ -98,15 +100,15 @@ pub fn writev_readv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         let mut queue = ring.submission();
         let write_e = write_e
             .build()
-            .user_data(types::io_uring_user_data { u64_: 0x01 })
-            .flags(types::IoringSqeFlags::IO_LINK)
+            .user_data(IoringUserData { u64_: 0x01 })
+            .flags(IoringSqeFlags::IO_LINK)
             .into();
         queue.push(&write_e).expect("queue is full");
         queue
             .push(
                 &read_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x02 })
+                    .user_data(IoringUserData { u64_: 0x02 })
                     .into(),
             )
             .expect("queue is full");

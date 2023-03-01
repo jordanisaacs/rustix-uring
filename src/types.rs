@@ -2,42 +2,23 @@
 
 use core::marker::PhantomData;
 use core::num::NonZeroU32;
+
 use rustix::io_uring;
 
-pub use rustix::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
-pub use rustix::fs::Advice;
-pub use rustix::fs::AtFlags;
-pub use rustix::fs::RenameFlags;
-pub use rustix::io::ReadWriteFlags;
-pub use rustix::net::AcceptFlags;
-pub use rustix::net::{RecvFlags, SendFlags};
-
-pub use rustix::io_uring::IoringAcceptFlags;
-pub use rustix::io_uring::IoringFsyncFlags;
-pub use rustix::io_uring::IoringOp;
-pub use rustix::io_uring::IoringPollFlags;
-pub use rustix::io_uring::IoringRecvsendFlags;
-pub use rustix::io_uring::IoringSqeFlags;
-pub use rustix::io_uring::IoringTimeoutFlags;
-pub use rustix::io_uring::SpliceFlags;
-pub use rustix::io_uring::{IoringCqFlags, IoringCqeFlags, IoringSetupFlags};
-pub use rustix::io_uring::{IoringRegisterOp, RecvmsgOutFlags};
-
-pub use rustix::io_uring::IoringMsgringCmds;
-pub use rustix::io_uring::IoringOpFlags;
-pub use rustix::io_uring::IoringRestrictionOp;
-pub use rustix::io_uring::IoringSqFlags;
-
-pub use rustix::io_uring::IoringAsyncCancelFlags;
-pub use rustix::io_uring::IoringMsgringFlags;
-
-pub use rustix::io::Errno;
-pub use rustix::io_uring::io_uring_user_data;
-pub use rustix::time::Timespec;
-
-pub use rustix::fs::{OFlags, ResolveFlags};
-
 use crate::util::cast_ptr;
+
+pub use rustix::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
+pub use rustix::fs::{Advice, AtFlags, OFlags, RenameFlags, ResolveFlags, Statx};
+pub use rustix::io::{Errno, ReadWriteFlags};
+pub use rustix::io_uring::{
+    io_uring_user_data as IoringUserData, IoringAcceptFlags, IoringAsyncCancelFlags, IoringCqFlags,
+    IoringCqeFlags, IoringEnterFlags, IoringFeatureFlags, IoringFsyncFlags, IoringMsgringCmds,
+    IoringMsgringFlags, IoringOp, IoringOpFlags, IoringPollFlags, IoringRecvsendFlags,
+    IoringRegisterOp, IoringRestrictionOp, IoringRsrcFlags, IoringSetupFlags, IoringSqFlags,
+    IoringSqeFlags, IoringTimeoutFlags, RecvmsgOutFlags, SpliceFlags,
+};
+pub use rustix::net::{AcceptFlags, RecvFlags, SendFlags};
+pub use rustix::time::Timespec;
 
 pub(crate) mod sealed {
     use super::{Fd, Fixed};

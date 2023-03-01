@@ -1,10 +1,13 @@
-use crate::Test;
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
 use std::fs::File;
 use std::io::{self, Write};
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::thread;
 use std::time::Duration;
+
+use io_uring::types::{Fd, IoringUserData};
+use io_uring::{cqueue, opcode, squeue, IoUring};
+
+use crate::Test;
 
 pub fn test_eventfd_poll<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
@@ -27,7 +30,7 @@ pub fn test_eventfd_poll<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         File::from_raw_fd(fd)
     };
 
-    let poll_e = opcode::PollAdd::new(types::Fd(fd.as_raw_fd()), libc::POLLIN as _);
+    let poll_e = opcode::PollAdd::new(Fd(fd.as_raw_fd()), libc::POLLIN as _);
 
     unsafe {
         let mut queue = ring.submission();
@@ -35,7 +38,7 @@ pub fn test_eventfd_poll<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &poll_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x04 })
+                    .user_data(IoringUserData { u64_: 0x04 })
                     .into(),
             )
             .expect("queue is full");
@@ -81,7 +84,7 @@ pub fn test_eventfd_poll_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // add poll
 
-    let poll_e = opcode::PollAdd::new(types::Fd(fd.as_raw_fd()), libc::POLLIN as _);
+    let poll_e = opcode::PollAdd::new(Fd(fd.as_raw_fd()), libc::POLLIN as _);
 
     unsafe {
         let mut queue = ring.submission();
@@ -89,7 +92,7 @@ pub fn test_eventfd_poll_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &poll_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x05 })
+                    .user_data(IoringUserData { u64_: 0x05 })
                     .into(),
             )
             .expect("queue is full");
@@ -99,7 +102,7 @@ pub fn test_eventfd_poll_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // remove poll
 
-    let poll_e = opcode::PollRemove::new(types::io_uring_user_data { u64_: 0x05 });
+    let poll_e = opcode::PollRemove::new(IoringUserData { u64_: 0x05 });
 
     unsafe {
         let mut queue = ring.submission();
@@ -107,7 +110,7 @@ pub fn test_eventfd_poll_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &poll_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x06 })
+                    .user_data(IoringUserData { u64_: 0x06 })
                     .into(),
             )
             .expect("queue is full");
@@ -156,7 +159,7 @@ pub fn test_eventfd_poll_remove_failed<S: squeue::EntryMarker, C: cqueue::EntryM
 
     // add poll
 
-    let poll_e = opcode::PollAdd::new(types::Fd(fd.as_raw_fd()), libc::POLLIN as _);
+    let poll_e = opcode::PollAdd::new(Fd(fd.as_raw_fd()), libc::POLLIN as _);
 
     unsafe {
         let mut queue = ring.submission();
@@ -164,7 +167,7 @@ pub fn test_eventfd_poll_remove_failed<S: squeue::EntryMarker, C: cqueue::EntryM
             .push(
                 &poll_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x07 })
+                    .user_data(IoringUserData { u64_: 0x07 })
                     .into(),
             )
             .expect("queue is full");
@@ -176,7 +179,7 @@ pub fn test_eventfd_poll_remove_failed<S: squeue::EntryMarker, C: cqueue::EntryM
 
     // remove poll
 
-    let poll_e = opcode::PollRemove::new(types::io_uring_user_data { u64_: 0x08 });
+    let poll_e = opcode::PollRemove::new(IoringUserData { u64_: 0x08 });
 
     unsafe {
         let mut queue = ring.submission();
@@ -184,7 +187,7 @@ pub fn test_eventfd_poll_remove_failed<S: squeue::EntryMarker, C: cqueue::EntryM
             .push(
                 &poll_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x08 })
+                    .user_data(IoringUserData { u64_: 0x08 })
                     .into(),
             )
             .expect("queue is full");
@@ -228,7 +231,7 @@ pub fn test_eventfd_poll_multi<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         File::from_raw_fd(fd)
     };
 
-    let poll_e = opcode::PollAdd::new(types::Fd(fd.as_raw_fd()), libc::POLLIN as _).multi(true);
+    let poll_e = opcode::PollAdd::new(Fd(fd.as_raw_fd()), libc::POLLIN as _).multi(true);
 
     unsafe {
         let mut queue = ring.submission();
@@ -236,7 +239,7 @@ pub fn test_eventfd_poll_multi<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &poll_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x04 })
+                    .user_data(IoringUserData { u64_: 0x04 })
                     .into(),
             )
             .expect("queue is full");

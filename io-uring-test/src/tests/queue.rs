@@ -1,5 +1,7 @@
+use io_uring::types::{self, DestinationSlot, Fd, Fixed, IoringUserData};
+use io_uring::{cqueue, opcode, squeue, IoUring};
+
 use crate::Test;
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
 
 pub fn test_nop<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
@@ -13,7 +15,7 @@ pub fn test_nop<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let nop_e = opcode::Nop::new()
         .build()
-        .user_data(types::io_uring_user_data { u64_: 0x42 })
+        .user_data(IoringUserData { u64_: 0x42 })
         .into();
 
     unsafe {
@@ -50,7 +52,7 @@ pub fn test_batch<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
         let sqes = vec![
             opcode::Nop::new()
                 .build()
-                .user_data(types::io_uring_user_data { u64_: 0x09 })
+                .user_data(types::IoringUserData { u64_: 0x09 })
                 .into();
             5
         ];
@@ -143,7 +145,7 @@ pub fn test_debug_print<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             sq.push(
                 &opcode::Nop::new()
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x42 })
+                    .user_data(IoringUserData { u64_: 0x42 })
                     .into(),
             )
             .expect("queue is full");
@@ -183,9 +185,9 @@ pub fn test_msg_ring_data<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     // the existing test/source ring. This will generate two completion events,
     // one on each ring.
     let mut dest_ring = IoUring::new(1)?;
-    let fd = types::Fd(dest_ring.as_raw_fd());
+    let fd = Fd(dest_ring.as_raw_fd());
     let result = 82; // b'R'
-    let user_data = types::io_uring_user_data { u64_: 85 }; // b'U'
+    let user_data = IoringUserData { u64_: 85 }; // b'U'
     let flags = None;
     unsafe {
         ring.submission()
@@ -253,11 +255,11 @@ pub fn test_msg_ring_send_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     // to the temp ring (to slot 1).
     // This will generate two completion events, one on each ring.
     unsafe {
-        let fd = types::Fd(temp_ring.as_raw_fd());
-        let dest_slot = types::DestinationSlot::try_from_slot_target(1).unwrap();
+        let fd = Fd(temp_ring.as_raw_fd());
+        let dest_slot = DestinationSlot::try_from_slot_target(1).unwrap();
         ring.submission()
             .push(
-                &opcode::MsgRingSendFd::new(fd, types::Fixed(0), dest_slot, 11, 22)
+                &opcode::MsgRingSendFd::new(fd, Fixed(0), dest_slot, 11, 22)
                     .build()
                     .into(),
             )
@@ -287,11 +289,11 @@ pub fn test_msg_ring_send_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     // to the temp ring (to slot 2).
     // This will again generate two completion events, one on each ring.
     unsafe {
-        let fd = types::Fd(ring.as_raw_fd());
-        let dest_slot = types::DestinationSlot::try_from_slot_target(2).unwrap();
+        let fd = Fd(ring.as_raw_fd());
+        let dest_slot = DestinationSlot::try_from_slot_target(2).unwrap();
         temp_ring
             .submission()
-            .push(&opcode::MsgRingSendFd::new(fd, types::Fixed(1), dest_slot, 33, 44).build())
+            .push(&opcode::MsgRingSendFd::new(fd, Fixed(1), dest_slot, 33, 44).build())
             .expect("queue is full");
     }
     temp_ring.submit_and_wait(1)?;

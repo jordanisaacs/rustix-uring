@@ -1,5 +1,6 @@
-use crate::Test;
 use io_uring::{cqueue, opcode, squeue, types, IoUring};
+
+use crate::Test;
 
 pub fn test_register_files_sparse<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,

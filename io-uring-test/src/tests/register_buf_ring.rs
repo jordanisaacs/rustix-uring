@@ -1,11 +1,6 @@
 // Create tests for registering buf_rings and for the buf_ring entries.
 // The entry point in this file can be found by searching for 'pub'.
 
-use crate::Test;
-use io_uring::types::BufRingEntry;
-use io_uring::types::{self, IoringCqeFlags};
-use io_uring::{cqueue, opcode, squeue, IoUring};
-
 use std::cell::Cell;
 use std::fmt;
 use std::io;
@@ -13,6 +8,11 @@ use std::os::unix::io::AsRawFd;
 use std::ptr;
 use std::rc::Rc;
 use std::sync::atomic::{self, AtomicU16};
+
+use io_uring::types::{BufRingEntry, Errno, Fd, IoringCqeFlags, IoringSqeFlags, IoringUserData};
+use io_uring::{cqueue, opcode, squeue, IoUring};
+
+use crate::Test;
 
 type Bgid = u16; // Buffer group id
 type Bid = u16; // Buffer id
@@ -153,9 +153,8 @@ impl InnerBufRing {
             bp
         };
 
-        let shared_tail =
-            unsafe { types::BufRingEntry::tail(ring_start.as_ptr() as *const BufRingEntry) }
-                as *const AtomicU16;
+        let shared_tail = unsafe { BufRingEntry::tail(ring_start.as_ptr() as *const BufRingEntry) }
+            as *const AtomicU16;
 
         let ring_entries_mask = ring_entries - 1;
         assert!((ring_entries & ring_entries_mask) == 0);
@@ -193,14 +192,14 @@ impl InnerBufRing {
 
         if let Err(e) = res {
             match e {
-                types::Errno::INVAL => {
+                Errno::INVAL => {
                     // using buf_ring requires kernel 5.19 or greater.
                     return Err(io::Error::new(
                             io::ErrorKind::Other,
                             format!("buf_ring.register returned {}, most likely indicating this kernel is not 5.19+", e),
                             ));
                 }
-                types::Errno::EXIST => {
+                Errno::EXIST => {
                     // Registering a duplicate bgid is not allowed. There is an `unregister`
                     // operations that can remove the first, but care must be taken that there
                     // are no outstanding operations that will still return a buffer from that
@@ -522,7 +521,7 @@ where
 }
 
 // Write sample to file descriptor.
-fn write_text_to_file<S, C>(ring: &mut IoUring<S, C>, fd: types::Fd, text: &[u8]) -> io::Result<()>
+fn write_text_to_file<S, C>(ring: &mut IoUring<S, C>, fd: Fd, text: &[u8]) -> io::Result<()>
 where
     S: squeue::EntryMarker,
     C: cqueue::EntryMarker,
@@ -533,8 +532,8 @@ where
         let mut queue = ring.submission();
         let write_e = write_e
             .build()
-            .user_data(types::io_uring_user_data { u64_: 0x01 })
-            .flags(types::IoringSqeFlags::IO_LINK)
+            .user_data(IoringUserData { u64_: 0x01 })
+            .flags(IoringSqeFlags::IO_LINK)
             .into();
         queue.push(&write_e).expect("queue is full");
     }
@@ -551,7 +550,7 @@ where
 fn buf_ring_read<S, C>(
     ring: &mut IoUring<S, C>,
     buf_ring: &FixedSizeBufRing,
-    fd: types::Fd,
+    fd: Fd,
     len: u32,
 ) -> io::Result<GBuf>
 where
@@ -568,8 +567,8 @@ where
             .push(
                 &read_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x02 })
-                    .flags(types::IoringSqeFlags::BUFFER_SELECT)
+                    .user_data(IoringUserData { u64_: 0x02 })
+                    .flags(IoringSqeFlags::BUFFER_SELECT)
                     .into(),
             )
             .expect("queue is full");
@@ -637,7 +636,7 @@ fn buf_ring_play<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     // Create a temporary file with a short sample text we will be reading multiple times.
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
     write_text_to_file(ring, fd, text)?;
 
     // Use the uring buf_ring feature to have two buffers taken from the buf_ring and read into,

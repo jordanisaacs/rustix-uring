@@ -1,17 +1,14 @@
 use core::ptr;
 use core::sync::atomic;
 
-use rustix::fd::{OwnedFd, RawFd};
-use rustix::io_uring::{IoringEnterFlags, IoringRegisterOp, IoringRsrcFlags, IoringSqFlags};
 use rustix::{io, io_uring};
 
-use crate::register::{execute, Probe};
+use crate::register::{execute, Probe, Restriction};
+use crate::types::{
+    IoringEnterFlags, IoringRegisterOp, IoringRsrcFlags, IoringSqFlags, OwnedFd, RawFd, SubmitArgs,
+};
 use crate::util::cast_ptr;
 use crate::Parameters;
-
-use crate::register::Restriction;
-
-use crate::types;
 
 /// Interface for submitting submission queue events in an io_uring instance to the kernel for
 /// executing and registering files or buffers with the instance.
@@ -133,11 +130,7 @@ impl<'a> Submitter<'a> {
         unsafe { self.enter::<libc::sigset_t>(len as _, want as _, flags, None) }
     }
 
-    pub fn submit_with_args(
-        &self,
-        want: usize,
-        args: &types::SubmitArgs<'_, '_>,
-    ) -> io::Result<usize> {
+    pub fn submit_with_args(&self, want: usize, args: &SubmitArgs<'_, '_>) -> io::Result<usize> {
         let len = self.sq_len();
         let mut flags = IoringEnterFlags::EXT_ARG;
 

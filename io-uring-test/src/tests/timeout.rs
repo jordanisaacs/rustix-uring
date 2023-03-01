@@ -1,6 +1,9 @@
-use crate::Test;
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
 use std::time::Instant;
+
+use io_uring::types::{Errno, IoringTimeoutFlags, IoringUserData, SubmitArgs, Timespec};
+use io_uring::{cqueue, opcode, squeue, IoUring};
+
+use crate::Test;
 
 pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
@@ -15,7 +18,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // add timeout
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: 1,
         tv_nsec: 0,
     };
@@ -27,7 +30,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x09 })
+                    .user_data(IoringUserData { u64_: 0x09 })
                     .into(),
             )
             .expect("queue is full");
@@ -46,7 +49,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // add timeout but no
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: 1,
         tv_nsec: 0,
     };
@@ -59,7 +62,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x0a })
+                    .user_data(IoringUserData { u64_: 0x0a })
                     .into(),
             )
             .expect("queue is full");
@@ -67,7 +70,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &nop_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x0b })
+                    .user_data(IoringUserData { u64_: 0x0b })
                     .into(),
             )
             .expect("queue is full");
@@ -112,7 +115,7 @@ pub fn test_timeout_count<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     println!("test timeout_count");
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: 1,
         tv_nsec: 0,
     };
@@ -125,7 +128,7 @@ pub fn test_timeout_count<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x0c })
+                    .user_data(IoringUserData { u64_: 0x0c })
                     .into(),
             )
             .expect("queue is full");
@@ -133,7 +136,7 @@ pub fn test_timeout_count<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &nop_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x0d })
+                    .user_data(IoringUserData { u64_: 0x0d })
                     .into(),
             )
             .expect("queue is full");
@@ -170,7 +173,7 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // add timeout
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: 1,
         tv_nsec: 0,
     };
@@ -182,7 +185,7 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x10 })
+                    .user_data(IoringUserData { u64_: 0x10 })
                     .into(),
             )
             .expect("queue is full");
@@ -192,7 +195,7 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // remove timeout
 
-    let timeout_e = opcode::TimeoutRemove::new(types::io_uring_user_data { u64_: 0x10 });
+    let timeout_e = opcode::TimeoutRemove::new(IoringUserData { u64_: 0x10 });
 
     unsafe {
         let mut queue = ring.submission();
@@ -200,7 +203,7 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x11 })
+                    .user_data(IoringUserData { u64_: 0x11 })
                     .into(),
             )
             .expect("queue is full");
@@ -237,7 +240,7 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // add timeout
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: 1,
         tv_nsec: 0,
     };
@@ -249,7 +252,7 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x10 })
+                    .user_data(IoringUserData { u64_: 0x10 })
                     .into(),
             )
             .expect("queue is full");
@@ -259,7 +262,7 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     // remove timeout
 
-    let timeout_e = opcode::AsyncCancel::new(types::io_uring_user_data { u64_: 0x10 });
+    let timeout_e = opcode::AsyncCancel::new(IoringUserData { u64_: 0x10 });
 
     unsafe {
         let mut queue = ring.submission();
@@ -267,7 +270,7 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x11 })
+                    .user_data(IoringUserData { u64_: 0x11 })
                     .into(),
             )
             .expect("queue is full");
@@ -310,12 +313,12 @@ pub fn test_timeout_abs<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(ret, 0);
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: now.tv_sec + 2,
         tv_nsec: now.tv_nsec,
     };
 
-    let timeout_e = opcode::Timeout::new(&ts).flags(types::IoringTimeoutFlags::ABS);
+    let timeout_e = opcode::Timeout::new(&ts).flags(IoringTimeoutFlags::ABS);
 
     unsafe {
         let mut queue = ring.submission();
@@ -323,7 +326,7 @@ pub fn test_timeout_abs<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &timeout_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x19 })
+                    .user_data(IoringUserData { u64_: 0x19 })
                     .into(),
             )
             .expect("queue is full");
@@ -354,18 +357,18 @@ pub fn test_timeout_submit_args<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     println!("test timeout_submit_args");
 
-    let ts = types::Timespec {
+    let ts = Timespec {
         tv_sec: 1,
         tv_nsec: 0,
     };
-    let args = types::SubmitArgs::new().timespec(&ts);
+    let args = SubmitArgs::new().timespec(&ts);
 
     // timeout
 
     let start = Instant::now();
     match ring.submitter().submit_with_args(1, &args) {
         Ok(_) => panic!(),
-        Err(err) if err == types::Errno::TIME => (),
+        Err(err) if err == Errno::TIME => (),
         Err(err) => return Err(err.into()),
     }
     assert_eq!(start.elapsed().as_secs(), 1);
@@ -381,7 +384,7 @@ pub fn test_timeout_submit_args<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &nop_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x1c })
+                    .user_data(IoringUserData { u64_: 0x1c })
                     .into(),
             )
             .expect("queue is full");

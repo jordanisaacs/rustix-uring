@@ -2,12 +2,12 @@
 
 use core::{fmt, mem, ptr};
 
-use crate::types::{
-    IoringOp, IoringOpFlags, IoringRegisterOp, IoringRestrictionOp, IoringSqeFlags,
-};
-
-use crate::types::{AsFd, BorrowedFd};
 use rustix::{io, io_uring};
+
+use crate::types::{
+    AsFd, BorrowedFd, IoringOp, IoringOpFlags, IoringRegisterOp, IoringRestrictionOp,
+    IoringSqeFlags,
+};
 
 pub(crate) fn execute<Fd: AsFd>(
     fd: Fd,

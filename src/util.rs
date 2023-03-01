@@ -1,10 +1,10 @@
 use core::ptr;
 use core::sync::atomic;
-use rustix::{
-    fd::OwnedFd,
-    io,
-    mm::{madvise, mmap, Advice, MapFlags, ProtFlags},
-};
+
+use rustix::io;
+use rustix::mm::{madvise, mmap, Advice, MapFlags, ProtFlags};
+
+use crate::types::OwnedFd;
 
 /// A region of memory mapped using `mmap(2)`.
 pub struct Mmap {

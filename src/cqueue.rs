@@ -5,10 +5,10 @@ use core::mem;
 use core::mem::MaybeUninit;
 use core::sync::atomic;
 
+use crate::io_uring;
+use crate::types::{IoringCqFlags, IoringCqeFlags, IoringSetupFlags, IoringUserData};
 use crate::util::{unsync_load, Mmap};
 
-use crate::io_uring;
-use crate::types::{IoringCqFlags, IoringCqeFlags, IoringSetupFlags};
 pub(crate) use private::Sealed;
 
 pub(crate) struct Inner<E: EntryMarker> {
@@ -213,7 +213,7 @@ impl Entry {
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
-    pub fn user_data(&self) -> io_uring::io_uring_user_data {
+    pub fn user_data(&self) -> IoringUserData {
         self.0.user_data
     }
 
@@ -262,7 +262,7 @@ impl Entry32 {
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
-    pub fn user_data(&self) -> io_uring::io_uring_user_data {
+    pub fn user_data(&self) -> IoringUserData {
         self.0 .0.user_data
     }
 

@@ -4,10 +4,10 @@ use core::fmt::{self, Debug, Display, Formatter};
 use core::mem;
 use core::sync::atomic;
 
-use crate::util::{unsync_load, Mmap};
-
-use crate::types::{IoringSetupFlags, IoringSqFlags, IoringSqeFlags};
 use rustix::io_uring;
+
+use crate::types::{IoringSetupFlags, IoringSqFlags, IoringSqeFlags, IoringUserData};
+use crate::util::{unsync_load, Mmap};
 
 pub(crate) struct Inner<E: EntryMarker> {
     pub(crate) head: *const atomic::AtomicU32,
@@ -246,7 +246,7 @@ impl Entry {
     /// Set the user data. This is an application-supplied value that will be passed straight
     /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
-    pub fn user_data(mut self, user_data: io_uring::io_uring_user_data) -> Entry {
+    pub fn user_data(mut self, user_data: IoringUserData) -> Entry {
         self.0.user_data = user_data;
         self
     }
@@ -293,7 +293,7 @@ impl Entry128 {
     /// Set the user data. This is an application-supplied value that will be passed straight
     /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
-    pub fn user_data(mut self, user_data: io_uring::io_uring_user_data) -> Entry128 {
+    pub fn user_data(mut self, user_data: IoringUserData) -> Entry128 {
         self.0 .0.user_data = user_data;
         self
     }

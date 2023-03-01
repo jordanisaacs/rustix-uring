@@ -18,11 +18,12 @@ use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 use core::{cmp, mem};
 
-use cqueue::Sealed as _;
-use rustix::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
-use rustix::io_uring::{IoringFeatureFlags, IoringSetupFlags};
 use rustix::{io, io_uring};
+
+use cqueue::Sealed as _;
 use squeue::Sealed as _;
+use types::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
+use types::{IoringFeatureFlags, IoringSetupFlags};
 use util::Mmap;
 
 pub use cqueue::CompletionQueue;

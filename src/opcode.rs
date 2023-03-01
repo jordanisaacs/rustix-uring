@@ -7,32 +7,17 @@ use core::mem;
 
 use crate::squeue::Entry;
 use crate::squeue::Entry128;
-use crate::types::{self, sealed};
-
-use crate::types::AcceptFlags;
-use crate::types::Advice;
-use crate::types::AtFlags;
-use crate::types::IoringAcceptFlags;
-use crate::types::IoringFsyncFlags;
-use crate::types::IoringOp;
-use crate::types::IoringPollFlags;
-use crate::types::IoringRecvsendFlags;
-use crate::types::IoringSqeFlags;
-use crate::types::IoringTimeoutFlags;
-use crate::types::RawFd;
-use crate::types::ReadWriteFlags;
-use crate::types::RenameFlags;
-use crate::types::SpliceFlags;
-use crate::types::{RecvFlags, SendFlags};
-
-use crate::types::IoringAsyncCancelFlags;
-use crate::types::IoringMsgringCmds;
-use crate::types::IoringMsgringFlags;
-use crate::types::OFlags;
 
 use libc::epoll_event;
-use rustix::fs;
-use rustix::{io_uring, time};
+use rustix::io_uring;
+
+use crate::types::{
+    sealed, AcceptFlags, Advice, AtFlags, DestinationSlot, Fixed, IoringAcceptFlags,
+    IoringAsyncCancelFlags, IoringFsyncFlags, IoringMsgringCmds, IoringMsgringFlags, IoringOp,
+    IoringPollFlags, IoringRecvsendFlags, IoringSqeFlags, IoringTimeoutFlags, IoringUserData,
+    OFlags, OpenHow, RawFd, ReadWriteFlags, RecvFlags, RenameFlags, SendFlags, SpliceFlags,
+    Timespec,
+};
 
 macro_rules! assign_fd {
     ( $sqe:ident . fd = $opfd:expr ) => {
@@ -431,7 +416,7 @@ opcode!(
     /// If not found, `result` will return `-libc::ENOENT`.
     // TODO: #[derive(Debug)] for io_uring_ptr
     pub struct PollRemove {
-        user_data: { io_uring::io_uring_user_data }
+        user_data: { IoringUserData }
         ;;
     }
 
@@ -443,7 +428,7 @@ opcode!(
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.user_data = user_data;
+        sqe.addr_or_splice_off_in.user_data = user_data.into();
         Entry(sqe)
     }
 );
@@ -608,7 +593,7 @@ opcode!(
     /// If the timeout was cancelled before it expired, the request will complete with `-ECANCELED`.
     #[derive(Debug)]
     pub struct Timeout {
-        timespec: { *const time::Timespec },
+        timespec: { *const Timespec },
         ;;
         /// `count` may contain a completion event count.
         count: u32 = 0,
@@ -638,7 +623,7 @@ opcode!(
 opcode!(
     /// Attempt to remove an existing [timeout operation](Timeout).
     pub struct TimeoutRemove {
-        user_data: { io_uring::io_uring_user_data }
+        user_data: { IoringUserData }
         ;;
         flags: IoringTimeoutFlags = IoringTimeoutFlags::empty()
     }
@@ -651,7 +636,7 @@ opcode!(
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.user_data = user_data;
+        sqe.addr_or_splice_off_in.user_data = user_data.into();
         sqe.op_flags.timeout_flags = flags;
         Entry(sqe)
     }
@@ -664,7 +649,7 @@ opcode!(
         addr: { *mut libc::sockaddr },
         addrlen: { *mut libc::socklen_t },
         ;;
-        file_index: Option<types::DestinationSlot> = None,
+        file_index: Option<DestinationSlot> = None,
         flags: AcceptFlags = AcceptFlags::empty()
     }
 
@@ -719,7 +704,7 @@ opcode!(
 opcode!(
     /// Attempt to cancel an already issued request.
     pub struct AsyncCancel {
-        user_data: { io_uring::io_uring_user_data }
+        user_data: { IoringUserData }
         ;;
 
         flags: IoringAsyncCancelFlags = IoringAsyncCancelFlags::empty(),
@@ -734,7 +719,7 @@ opcode!(
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
         sqe.op_flags.cancel_flags = flags;
-        sqe.addr_or_splice_off_in.user_data = user_data;
+        sqe.addr_or_splice_off_in.user_data = user_data.into();
         Entry(sqe)
     }
 );
@@ -744,7 +729,7 @@ opcode!(
     /// [`Flags::IO_LINK`](crate::squeue::Flags::IO_LINK) which is described below.
     /// Unlike [`Timeout`], [`LinkTimeout`] acts on the linked request, not the completion queue.
     pub struct LinkTimeout {
-        timespec: { *const time::Timespec },
+        timespec: { *const Timespec },
         ;;
         flags: IoringTimeoutFlags = IoringTimeoutFlags::empty()
     }
@@ -862,7 +847,7 @@ opcode!(
         dirfd: { impl sealed::UseFd },
         pathname: { *const libc::c_char },
         ;;
-        file_index: Option<types::DestinationSlot> = None,
+        file_index: Option<DestinationSlot> = None,
         flags: OFlags = OFlags::empty(),
         mode: libc::mode_t = 0
     }
@@ -943,7 +928,7 @@ opcode!(
     pub struct Statx {
         dirfd: { impl sealed::UseFd },
         pathname: { *const libc::c_char },
-        statxbuf: { *mut fs::Statx },
+        statxbuf: { *mut Statx },
         ;;
         flags: AtFlags = AtFlags::empty(),
         mask: u32 = 0
@@ -1231,9 +1216,9 @@ opcode!(
     pub struct OpenAt2 {
         dirfd: { impl sealed::UseFd },
         pathname: { *const libc::c_char },
-        how: { *const types::OpenHow }
+        how: { *const OpenHow }
         ;;
-        file_index: Option<types::DestinationSlot> = None,
+        file_index: Option<DestinationSlot> = None,
     }
 
     pub const CODE = IoringOp::Openat2;
@@ -1246,7 +1231,7 @@ opcode!(
         sqe.fd = dirfd;
         sqe.addr_or_splice_off_in.addr = to_iouring_ptr(pathname.cast_mut());
         sqe.len.len = mem::size_of::<io_uring::open_how>() as _;
-        sqe.off_or_addr2.off = how as _;
+        sqe.off_or_addr2.addr2 = to_iouring_ptr(how.cast_mut());
         if let Some(dest) = file_index {
             sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
         }
@@ -1566,7 +1551,7 @@ opcode!(
     pub struct MsgRingData {
         ring_fd: { impl sealed::UseFd },
         result: { i32 },
-        user_data: { types::io_uring_user_data },
+        user_data: { IoringUserData },
         user_flags: { Option<u32> },
         ;;
         opcode_flags: IoringMsgringFlags = IoringMsgringFlags::empty()
@@ -1582,7 +1567,7 @@ opcode!(
         sqe.addr_or_splice_off_in.msgring_cmd = IoringMsgringCmds::Data;
         sqe.fd = ring_fd;
         sqe.len.len = result as u32;
-        sqe.off_or_addr2.user_data = user_data;
+        sqe.off_or_addr2.user_data = user_data.into();
         sqe.op_flags.msg_ring_flags = opcode_flags;
         if let Some(_flags) = user_flags {
             // TODO(lucab): add IORING_MSG_RING_FLAGS_PASS support (in v6.3):
@@ -1660,7 +1645,7 @@ opcode!(
         socket_type: { i32 },
         protocol: { i32 },
         ;;
-        file_index: Option<types::DestinationSlot> = None,
+        file_index: Option<DestinationSlot> = None,
         flags: ReadWriteFlags = ReadWriteFlags::empty(),
     }
 
@@ -1688,8 +1673,8 @@ opcode!(
     /// Send a message (with fixed FD) to a target ring.
     pub struct MsgRingSendFd {
         ring_fd: { impl sealed::UseFd },
-        fixed_slot_src: { types::Fixed },
-        dest_slot_index: { types::DestinationSlot },
+        fixed_slot_src: { Fixed },
+        dest_slot_index: { DestinationSlot },
         result: { i32 },
         user_data: { u64 },
         ;;

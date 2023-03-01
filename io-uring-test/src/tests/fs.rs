@@ -1,11 +1,14 @@
-use crate::utils;
-use crate::Test;
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
 use std::ffi::CString;
 use std::fs;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
+
+use io_uring::types::{DestinationSlot, Fd, Fixed, IoringUserData, OFlags, OpenHow};
+use io_uring::{cqueue, opcode, squeue, IoUring};
+
+use crate::utils;
+use crate::Test;
 
 pub fn test_file_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
@@ -20,7 +23,7 @@ pub fn test_file_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_write_read");
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     utils::write_read(ring, fd, fd)?;
 
@@ -40,7 +43,7 @@ pub fn test_file_writev_readv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_writev_readv");
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     utils::writev_readv(ring, fd, fd)?;
 
@@ -62,7 +65,7 @@ pub fn test_file_fsync<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let n = fd.write(&[0x1])?;
     assert_eq!(n, 1);
 
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     let fsync_e = opcode::Fsync::new(fd);
 
@@ -71,7 +74,7 @@ pub fn test_file_fsync<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &fsync_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x03 })
+                    .user_data(IoringUserData { u64_: 0x03 })
                     .into(),
             )
             .expect("queue is full");
@@ -105,7 +108,7 @@ pub fn test_file_fsync_file_range<S: squeue::EntryMarker, C: cqueue::EntryMarker
     let n = fd.write(&[0x3; 1024])?;
     assert_eq!(n, 1024);
 
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     let fsync_e = opcode::SyncFileRange::new(fd, 1024).offset(3 * 1024);
 
@@ -114,7 +117,7 @@ pub fn test_file_fsync_file_range<S: squeue::EntryMarker, C: cqueue::EntryMarker
             .push(
                 &fsync_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x04 })
+                    .user_data(IoringUserData { u64_: 0x04 })
                     .into(),
             )
             .expect("queue is full");
@@ -144,7 +147,7 @@ pub fn test_file_fallocate<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_fallocate");
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     let falloc_e = opcode::Fallocate::new(fd, 1024);
 
@@ -153,7 +156,7 @@ pub fn test_file_fallocate<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &falloc_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x10 })
+                    .user_data(IoringUserData { u64_: 0x10 })
                     .into(),
             )
             .expect("queue is full");
@@ -182,7 +185,7 @@ pub fn test_file_fallocate64<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_fallocate64");
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     let falloc_e = opcode::Fallocate64::new(fd, 1024);
 
@@ -191,7 +194,7 @@ pub fn test_file_fallocate64<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &falloc_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x20 })
+                    .user_data(IoringUserData { u64_: 0x20 })
                     .into(),
             )
             .expect("queue is full");
@@ -222,12 +225,12 @@ pub fn test_file_openat2<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_openat2");
 
     let dir = tempdir()?;
-    let dirfd = types::Fd(libc::AT_FDCWD);
+    let dirfd = Fd(libc::AT_FDCWD);
 
     let path = dir.path().join("test-io-uring-openat2");
     let path = CString::new(path.as_os_str().as_bytes())?;
 
-    let openhow = types::OpenHow::new().flags(types::OFlags::CREATE);
+    let openhow = OpenHow::new().flags(OFlags::CREATE);
     let open_e = opcode::OpenAt2::new(dirfd, path.as_ptr(), &openhow);
 
     unsafe {
@@ -235,7 +238,7 @@ pub fn test_file_openat2<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &open_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x11 })
+                    .user_data(IoringUserData { u64_: 0x11 })
                     .into(),
             )
             .expect("queue is full");
@@ -278,7 +281,7 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
     println!("test file_openat2_close_file_index");
 
     let dir = tempdir()?;
-    let dirfd = types::Fd(libc::AT_FDCWD);
+    let dirfd = Fd(libc::AT_FDCWD);
 
     // One more round than table size.
     for round in 0..3 {
@@ -288,20 +291,16 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
         ));
         let path = CString::new(path.as_os_str().as_bytes())?;
 
-        let openhow = types::OpenHow::new().flags(types::OFlags::CREATE);
+        let openhow = OpenHow::new().flags(OFlags::CREATE);
 
-        let file_index = types::DestinationSlot::auto_target();
+        let file_index = DestinationSlot::auto_target();
 
         let op = opcode::OpenAt2::new(dirfd, path.as_ptr(), &openhow);
         let op = op.file_index(Some(file_index));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x11 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x11 }).into())
                 .expect("queue is full");
         }
 
@@ -320,15 +319,11 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
 
     // Drop two.
     for round in 0..2 {
-        let op = opcode::Close::new(types::Fixed(round));
+        let op = opcode::Close::new(Fixed(round));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x12 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x12 }).into())
                 .expect("queue is full");
         }
 
@@ -354,20 +349,16 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
         ));
         let path = CString::new(path.as_os_str().as_bytes())?;
 
-        let openhow = types::OpenHow::new().flags(types::OFlags::CREATE);
+        let openhow = OpenHow::new().flags(OFlags::CREATE);
 
-        let file_index = types::DestinationSlot::try_from_slot_target(round).unwrap();
+        let file_index = DestinationSlot::try_from_slot_target(round).unwrap();
 
         let op = opcode::OpenAt2::new(dirfd, path.as_ptr(), &openhow);
         let op = op.file_index(Some(file_index));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x11 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x11 }).into())
                 .expect("queue is full");
         }
 
@@ -386,15 +377,11 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
 
     // Drop two.
     for round in 0..2 {
-        let op = opcode::Close::new(types::Fixed(round));
+        let op = opcode::Close::new(Fixed(round));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x12 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x12 }).into())
                 .expect("queue is full");
         }
 
@@ -435,7 +422,7 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
     println!("test file_openat_close_file_index");
 
     let dir = tempdir()?;
-    let dirfd = types::Fd(libc::AT_FDCWD);
+    let dirfd = Fd(libc::AT_FDCWD);
 
     // One more round than table size.
     for round in 0..3 {
@@ -444,19 +431,15 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
             .join(format!("test-io-uring-openat-file_index-a-round-{}", round));
         let path = CString::new(path.as_os_str().as_bytes())?;
 
-        let file_index = types::DestinationSlot::auto_target();
+        let file_index = DestinationSlot::auto_target();
 
         let op = opcode::OpenAt::new(dirfd, path.as_ptr());
-        let op = op.flags(types::OFlags::CREATE);
+        let op = op.flags(OFlags::CREATE);
         let op = op.file_index(Some(file_index));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x11 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x11 }).into())
                 .expect("queue is full");
         }
 
@@ -475,15 +458,11 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
 
     // Drop two.
     for round in 0..2 {
-        let op = opcode::Close::new(types::Fixed(round));
+        let op = opcode::Close::new(Fixed(round));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x12 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x12 }).into())
                 .expect("queue is full");
         }
 
@@ -508,19 +487,15 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
             .join(format!("test-io-uring-openat-file_index-b-round-{}", round));
         let path = CString::new(path.as_os_str().as_bytes())?;
 
-        let file_index = types::DestinationSlot::try_from_slot_target(round).unwrap();
+        let file_index = DestinationSlot::try_from_slot_target(round).unwrap();
 
         let op = opcode::OpenAt::new(dirfd, path.as_ptr());
-        let op = op.flags(types::OFlags::CREATE);
+        let op = op.flags(OFlags::CREATE);
         let op = op.file_index(Some(file_index));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x11 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x11 }).into())
                 .expect("queue is full");
         }
 
@@ -539,15 +514,11 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
 
     // Drop two.
     for round in 0..2 {
-        let op = opcode::Close::new(types::Fixed(round));
+        let op = opcode::Close::new(Fixed(round));
 
         unsafe {
             ring.submission()
-                .push(
-                    &op.build()
-                        .user_data(types::io_uring_user_data { u64_: 0x12 })
-                        .into(),
-                )
+                .push(&op.build().user_data(IoringUserData { u64_: 0x12 }).into())
                 .expect("queue is full");
         }
 
@@ -577,7 +548,7 @@ pub fn test_file_close<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_cloes");
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.into_raw_fd());
+    let fd = Fd(fd.into_raw_fd());
 
     let close_e = opcode::Close::new(fd);
 
@@ -586,7 +557,7 @@ pub fn test_file_close<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &close_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x12 })
+                    .user_data(IoringUserData { u64_: 0x12 })
                     .into(),
             )
             .expect("queue is full");
@@ -617,7 +588,7 @@ pub fn test_file_cur_pos<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     println!("test file_cur_pos");
 
     let fd = tempfile::tempfile()?;
-    let fd = types::Fd(fd.into_raw_fd());
+    let fd = Fd(fd.into_raw_fd());
 
     let text = b"The quick brown fox jumps over the lazy dog.";
     let mut output = vec![0; text.len()];
@@ -625,7 +596,7 @@ pub fn test_file_cur_pos<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let write_e = opcode::Write::new(fd, text.as_ptr(), 22)
         .offset(u64::MAX)
         .build()
-        .user_data(types::io_uring_user_data { u64_: 0x01 })
+        .user_data(IoringUserData { u64_: 0x01 })
         .into();
 
     unsafe {
@@ -637,7 +608,7 @@ pub fn test_file_cur_pos<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let write_e = opcode::Write::new(fd, unsafe { text.as_ptr().add(22) }, 22)
         .offset(u64::MAX)
         .build()
-        .user_data(types::io_uring_user_data { u64_: 0x02 })
+        .user_data(IoringUserData { u64_: 0x02 })
         .into();
 
     unsafe {
@@ -653,7 +624,7 @@ pub fn test_file_cur_pos<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             .push(
                 &read_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x03 })
+                    .user_data(IoringUserData { u64_: 0x03 })
                     .into(),
             )
             .expect("queue is full");
@@ -699,13 +670,13 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let mut statxbuf: libc::statx = unsafe { std::mem::zeroed() };
 
     let statx_e = opcode::Statx::new(
-        types::Fd(libc::AT_FDCWD),
+        Fd(libc::AT_FDCWD),
         pathbuf.as_ptr(),
         &mut statxbuf as *mut libc::statx as *mut _,
     )
     .mask(libc::STATX_ALL)
     .build()
-    .user_data(types::io_uring_user_data { u64_: 0x99 })
+    .user_data(IoringUserData { u64_: 0x99 })
     .into();
 
     unsafe {
@@ -740,14 +711,14 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let mut statxbuf3: libc::statx = unsafe { std::mem::zeroed() };
 
     let statx_e = opcode::Statx::new(
-        types::Fd(fd.as_raw_fd()),
+        Fd(fd.as_raw_fd()),
         b"\0".as_ptr().cast(),
         &mut statxbuf3 as *mut libc::statx as *mut _,
     )
     .flags(AtFlags::EMPTY_PATH)
     .mask(libc::STATX_ALL)
     .build()
-    .user_data(types::io_uring_user_data { u64_: 0x9a })
+    .user_data(IoringUserData { u64_: 0x9a })
     .into();
 
     unsafe {
@@ -794,7 +765,7 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
         .create_new(true)
         .custom_flags(libc::O_DIRECT)
         .open(dir.path().join("io-uring-test-file"))?;
-    let fd = types::Fd(fd.as_raw_fd());
+    let fd = Fd(fd.as_raw_fd());
 
     // ok
 
@@ -809,7 +780,7 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
             .push(
                 &write_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x01 })
+                    .user_data(IoringUserData { u64_: 0x01 })
                     .into(),
             )
             .expect("queue is full");
@@ -822,7 +793,7 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
             .push(
                 &read_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x02 })
+                    .user_data(IoringUserData { u64_: 0x02 })
                     .into(),
             )
             .expect("queue is full");
@@ -852,7 +823,7 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
             .push(
                 &read_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x03 })
+                    .user_data(IoringUserData { u64_: 0x03 })
                     .into(),
             )
             .expect("queue is full");
@@ -899,20 +870,14 @@ pub fn test_file_splice<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     fs::write(dir.join("io-uring-test-file-input"), input)?;
     let fd = fs::File::open(dir.join("io-uring-test-file-input"))?;
 
-    let splice_e = opcode::Splice::new(
-        types::Fd(fd.as_raw_fd()),
-        0,
-        types::Fd(pipe_in.as_raw_fd()),
-        -1,
-        1024,
-    );
+    let splice_e = opcode::Splice::new(Fd(fd.as_raw_fd()), 0, Fd(pipe_in.as_raw_fd()), -1, 1024);
 
     unsafe {
         ring.submission()
             .push(
                 &splice_e
                     .build()
-                    .user_data(types::io_uring_user_data { u64_: 0x33 })
+                    .user_data(IoringUserData { u64_: 0x33 })
                     .into(),
             )
             .expect("queue is full");
