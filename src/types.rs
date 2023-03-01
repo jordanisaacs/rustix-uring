@@ -84,7 +84,7 @@ pub struct Fixed(pub u32);
 /// let mut args = SubmitArgs::new();
 ///
 /// {
-///     let ts = Timespec::new();
+///     let ts = Timespec { tv_sec: 1, tv_nsec: 0 };
 ///     args = args.timespec(&ts);
 ///     args = args.sigmask(&sigmask);
 /// }
@@ -313,6 +313,8 @@ impl<'buf> RecvMsgOut<'buf> {
     /// `buffer` is the whole buffer previously provided to the ring, while `msghdr`
     /// is the same content provided as input to the corresponding SQE
     /// (only `msg_namelen` and `msg_controllen` fields are relevant).
+    // TODO: ignore clippy lint
+    #[allow(clippy::result_unit_err)]
     pub fn parse(buffer: &'buf [u8], msghdr: &libc::msghdr) -> Result<Self, ()> {
         if buffer.len() < core::mem::size_of::<io_uring::io_uring_recvmsg_out>() {
             return Err(());

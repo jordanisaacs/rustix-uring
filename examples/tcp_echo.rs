@@ -3,7 +3,8 @@ use std::net::TcpListener;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, ptr};
 
-use io_uring::{opcode, squeue, types, IoUring, SubmissionQueue};
+use io_uring::types::{Errno, Fd, IoringUserData};
+use io_uring::{opcode, squeue, IoUring, SubmissionQueue};
 use slab::Slab;
 
 #[derive(Clone, Debug)]
@@ -32,9 +33,9 @@ pub struct AcceptCount {
 impl AcceptCount {
     fn new(fd: RawFd, token: usize, count: usize) -> AcceptCount {
         AcceptCount {
-            entry: opcode::Accept::new(types::Fd(fd), ptr::null_mut(), ptr::null_mut())
+            entry: opcode::Accept::new(Fd(fd), ptr::null_mut(), ptr::null_mut())
                 .build()
-                .user_data(types::io_uring_user_data { u64_: token as _ }),
+                .user_data(IoringUserData { u64_: token as _ }),
             count,
         }
     }
@@ -73,7 +74,7 @@ fn main() -> anyhow::Result<()> {
     loop {
         match submitter.submit_and_wait(1) {
             Ok(_) => (),
-            Err(err) if err == types::Errno::BUSY => (),
+            Err(err) if err == Errno::BUSY => (),
             Err(err) => return Err(err.into()),
         }
         cq.sync();
@@ -83,7 +84,7 @@ fn main() -> anyhow::Result<()> {
             if sq.is_full() {
                 match submitter.submit() {
                     Ok(_) => (),
-                    Err(err) if err == types::Errno::BUSY => break,
+                    Err(err) if err == Errno::BUSY => break,
                     Err(err) => return Err(err.into()),
                 }
             }
@@ -122,9 +123,9 @@ fn main() -> anyhow::Result<()> {
                     let fd = ret;
                     let poll_token = token_alloc.insert(Token::Poll { fd });
 
-                    let poll_e = opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)
+                    let poll_e = opcode::PollAdd::new(Fd(fd), libc::POLLIN as _)
                         .build()
-                        .user_data(types::io_uring_user_data {
+                        .user_data(IoringUserData {
                             u64_: poll_token as _,
                         });
 
@@ -147,9 +148,9 @@ fn main() -> anyhow::Result<()> {
 
                     *token = Token::Read { fd, buf_index };
 
-                    let read_e = opcode::Recv::new(types::Fd(fd), buf.as_mut_ptr(), buf.len() as _)
+                    let read_e = opcode::Recv::new(Fd(fd), buf.as_mut_ptr(), buf.len() as _)
                         .build()
-                        .user_data(types::io_uring_user_data {
+                        .user_data(IoringUserData {
                             u64_: token_index as _,
                         });
 
@@ -180,9 +181,9 @@ fn main() -> anyhow::Result<()> {
                             offset: 0,
                         };
 
-                        let write_e = opcode::Send::new(types::Fd(fd), buf.as_ptr(), len as _)
+                        let write_e = opcode::Send::new(Fd(fd), buf.as_ptr(), len as _)
                             .build()
-                            .user_data(types::io_uring_user_data {
+                            .user_data(IoringUserData {
                                 u64_: token_index as _,
                             });
 
@@ -206,9 +207,9 @@ fn main() -> anyhow::Result<()> {
 
                         *token = Token::Poll { fd };
 
-                        opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)
+                        opcode::PollAdd::new(Fd(fd), libc::POLLIN as _)
                             .build()
-                            .user_data(types::io_uring_user_data {
+                            .user_data(IoringUserData {
                                 u64_: token_index as _,
                             })
                     } else {
@@ -224,9 +225,9 @@ fn main() -> anyhow::Result<()> {
                             len,
                         };
 
-                        opcode::Write::new(types::Fd(fd), buf.as_ptr(), len as _)
+                        opcode::Write::new(Fd(fd), buf.as_ptr(), len as _)
                             .build()
-                            .user_data(types::io_uring_user_data {
+                            .user_data(IoringUserData {
                                 u64_: token_index as _,
                             })
                     };

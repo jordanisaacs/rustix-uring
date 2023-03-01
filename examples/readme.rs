@@ -1,6 +1,8 @@
-use io_uring::{opcode, types, IoUring};
 use std::os::unix::io::AsRawFd;
 use std::{fs, io};
+
+use io_uring::types::{Fd, IoringUserData};
+use io_uring::{opcode, IoUring};
 
 fn main() -> io::Result<()> {
     let mut ring = IoUring::new(8)?;
@@ -8,9 +10,9 @@ fn main() -> io::Result<()> {
     let fd = fs::File::open("README.md")?;
     let mut buf = vec![0; 1024];
 
-    let read_e = opcode::Read::new(types::Fd(fd.as_raw_fd()), buf.as_mut_ptr(), buf.len() as _)
+    let read_e = opcode::Read::new(Fd(fd.as_raw_fd()), buf.as_mut_ptr(), buf.len() as _)
         .build()
-        .user_data(types::io_uring_user_data { u64_: 0x42 });
+        .user_data(IoringUserData { u64_: 0x42 });
 
     // Note that the developer needs to ensure
     // that the entry pushed into submission queue is valid (e.g. fd, buffer).

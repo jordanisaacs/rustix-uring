@@ -238,7 +238,7 @@ opcode!(
         fd: { impl sealed::UseFixed },
         ;;
         /// The `flags` bit mask may contain either 0, for a normal file integrity sync,
-        /// or [types::FsyncFlags::DATASYNC] to provide data sync only semantics.
+        /// or [crate::types::IoringFsyncFlags::DATASYNC] to provide data sync only semantics.
         /// See the descriptions of `O_SYNC` and `O_DSYNC` in the `open(2)` manual page for more information.
         flags: IoringFsyncFlags = IoringFsyncFlags::empty()
     }
@@ -428,7 +428,7 @@ opcode!(
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.user_data = user_data.into();
+        sqe.addr_or_splice_off_in.user_data = user_data;
         Entry(sqe)
     }
 );
@@ -538,7 +538,7 @@ opcode!(
     ///                fields are relevant.
     ///     buf_group: The id of the provided buffer pool to use for each received message.
     ///
-    /// See also the description of [`SendMsg`] and [`types::RecvMsgOut`].
+    /// See also the description of [`SendMsg`] and [`crate::types::RecvMsgOut`].
     ///
     /// The multishot version allows the application to issue a single receive request, which
     /// repeatedly posts a CQE when data is available. It requires the MSG_WAITALL flag is not set.
@@ -549,7 +549,7 @@ opcode!(
     ///
     /// Unlike [`RecvMsg`], this multishot recvmsg will prepend a struct which describes the layout
     /// of the rest of the buffer in combination with the initial msghdr structure submitted with
-    /// the request. Use [`types::RecvMsgOut`] to parse the data received and access its
+    /// the request. Use [`crate::types::RecvMsgOut`] to parse the data received and access its
     /// components.
     ///
     /// The recvmsg multishot variant is available since kernel 6.0.
@@ -598,7 +598,7 @@ opcode!(
         /// `count` may contain a completion event count.
         count: u32 = 0,
 
-        /// `flags` may contain [types::TimeoutFlags::ABS] for an absolute timeout value, or 0 for a relative timeout.
+        /// `flags` may contain [crate::types::IoringTimeoutFlags::ABS] for an absolute timeout value, or 0 for a relative timeout.
         flags: IoringTimeoutFlags = IoringTimeoutFlags::empty()
     }
 
@@ -636,7 +636,7 @@ opcode!(
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
-        sqe.addr_or_splice_off_in.user_data = user_data.into();
+        sqe.addr_or_splice_off_in.user_data = user_data;
         sqe.op_flags.timeout_flags = flags;
         Entry(sqe)
     }
@@ -719,14 +719,14 @@ opcode!(
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
         sqe.op_flags.cancel_flags = flags;
-        sqe.addr_or_splice_off_in.user_data = user_data.into();
+        sqe.addr_or_splice_off_in.user_data = user_data;
         Entry(sqe)
     }
 );
 
 opcode!(
     /// This request must be linked with another request through
-    /// [`Flags::IO_LINK`](crate::squeue::Flags::IO_LINK) which is described below.
+    /// [`Flags::IO_LINK`](crate::types::IoringSqeFlags::IO_LINK) which is described below.
     /// Unlike [`Timeout`], [`LinkTimeout`] acts on the linked request, not the completion queue.
     pub struct LinkTimeout {
         timespec: { *const Timespec },
@@ -1310,7 +1310,7 @@ opcode!(
 opcode!(
     /// Register `nbufs` buffers that each have the length `len` with ids starting from `big` in the
     /// group `bgid` that can be used for any request. See
-    /// [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
+    /// [`BUFFER_SELECT`](crate::types::IoringSqeFlags::BUFFER_SELECT) for more info.
     pub struct ProvideBuffers {
         addr: { *mut u8 },
         len: { i32 },
@@ -1338,7 +1338,7 @@ opcode!(
 
 opcode!(
     /// Remove some number of buffers from a buffer group. See
-    /// [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
+    /// [`BUFFER_SELECT`](crate::types::IoringSqeFlags::BUFFER_SELECT) for more info.
     pub struct RemoveBuffers {
         nbufs: { u16 },
         bgid: { u16 }
@@ -1567,7 +1567,7 @@ opcode!(
         sqe.addr_or_splice_off_in.msgring_cmd = IoringMsgringCmds::Data;
         sqe.fd = ring_fd;
         sqe.len.len = result as u32;
-        sqe.off_or_addr2.user_data = user_data.into();
+        sqe.off_or_addr2.user_data = user_data;
         sqe.op_flags.msg_ring_flags = opcode_flags;
         if let Some(_flags) = user_flags {
             // TODO(lucab): add IORING_MSG_RING_FLAGS_PASS support (in v6.3):

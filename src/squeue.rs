@@ -236,7 +236,7 @@ impl<E: EntryMarker> Drop for SubmissionQueue<'_, E> {
 }
 
 impl Entry {
-    /// Set the submission event's [flags](Flags).
+    /// Set the submission event's [flags](crate::types::IoringSqeFlags).
     #[inline]
     pub fn flags(mut self, flags: IoringSqeFlags) -> Entry {
         self.0.flags |= flags;
@@ -283,7 +283,7 @@ impl Debug for Entry {
 }
 
 impl Entry128 {
-    /// Set the submission event's [flags](Flags).
+    /// Set the submission event's [flags](crate::types::IoringSqeFlags).
     #[inline]
     pub fn flags(mut self, flags: IoringSqeFlags) -> Entry128 {
         self.0 .0.flags |= flags;

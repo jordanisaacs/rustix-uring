@@ -221,7 +221,7 @@ impl Entry {
     ///
     /// This is currently used for:
     /// - Storing the selected buffer ID, if one was selected. See
-    /// [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
+    /// [`BUFFER_SELECT`](crate::types::IoringSqeFlags::BUFFER_SELECT) for more info.
     #[inline]
     pub fn flags(&self) -> IoringCqeFlags {
         self.0.flags
@@ -270,7 +270,7 @@ impl Entry32 {
     ///
     /// This is currently used for:
     /// - Storing the selected buffer ID, if one was selected. See
-    /// [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
+    /// [`BUFFER_SELECT`](crate::types::IoringSqeFlags::BUFFER_SELECT) for more info.
     #[inline]
     pub fn flags(&self) -> IoringCqeFlags {
         self.0 .0.flags

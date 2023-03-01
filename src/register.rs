@@ -138,7 +138,7 @@ impl Restriction {
         Restriction(res)
     }
 
-    /// Allow the given [submission queue event flags](crate::squeue::Flags).
+    /// Allow the given [submission queue event flags](crate::types::IoringSqeFlags).
     pub fn sqe_flags_allowed(flags: IoringSqeFlags) -> Restriction {
         let mut res = res_zeroed();
         res.opcode = IoringRestrictionOp::SqeFlagsAllowed as _;
@@ -146,7 +146,7 @@ impl Restriction {
         Restriction(res)
     }
 
-    /// Require the given [submission queue event flags](crate::squeue::Flags). These flags must be
+    /// Require the given [submission queue event flags](crate::types::IoringSqeFlags). These flags must be
     /// set on every submission.
     pub fn sqe_flags_required(flags: IoringSqeFlags) -> Restriction {
         let mut res = res_zeroed();
