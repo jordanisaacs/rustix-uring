@@ -1,13 +1,13 @@
 [package]
 name = "rustix-uring"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Jordan Isaacs <mail@jdisaacs.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/jordanisaacs/rustix-uring"
 homepage = "https://github.com/jordanisaacs/rustix-uring"
 documentation = "https://docs.rs/rustix-uring"
-description = "The low-level `io_uring` userspace interface for Rust"
+description = "The low-level `io_uring` userspace interface for Rust (with Rustix)"
 categories = [ "asynchronous", "network-programming", "filesystem" ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
