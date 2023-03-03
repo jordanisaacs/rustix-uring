@@ -14,7 +14,7 @@ rust-version = "1.63"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-exclude = []
+exclude = ["/flake.*", ".envrc"]
 members = [ "io-uring-test", "io-uring-bench" ]
 
 [features]
