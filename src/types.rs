@@ -13,9 +13,9 @@ pub use rustix::io::{Errno, ReadWriteFlags};
 pub use rustix::io_uring::{
     io_uring_user_data as IoringUserData, IoringAcceptFlags, IoringAsyncCancelFlags, IoringCqFlags,
     IoringCqeFlags, IoringEnterFlags, IoringFeatureFlags, IoringFsyncFlags, IoringMsgringCmds,
-    IoringMsgringFlags, IoringOp, IoringOpFlags, IoringPollFlags, IoringRecvsendFlags,
-    IoringRegisterOp, IoringRestrictionOp, IoringRsrcFlags, IoringSetupFlags, IoringSqFlags,
-    IoringSqeFlags, IoringTimeoutFlags, RecvmsgOutFlags, SpliceFlags,
+    IoringMsgringFlags, IoringOp, IoringOpFlags, IoringPollFlags, IoringRecvFlags,
+    IoringRegisterOp, IoringRestrictionOp, IoringRsrcFlags, IoringSendFlags, IoringSetupFlags,
+    IoringSqFlags, IoringSqeFlags, IoringTimeoutFlags, RecvmsgOutFlags, SpliceFlags,
 };
 pub use rustix::net::{AcceptFlags, RecvFlags, SendFlags};
 pub use rustix::time::Timespec;

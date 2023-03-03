@@ -22,7 +22,7 @@ std = ["rustix/std"]
 
 [dependencies]
 libc = { version = "0.2.98", default-features = false }
-rustix = { git = "https://github.com/jordanisaacs/rustix.git", branch = "iouring-flags", default-features = false, features = ["io_uring", "mm", "time"] }
+rustix = { version = "0.37", default-features = false, features = ["io_uring", "mm", "time"] }
 
 [dev-dependencies]
 anyhow = "1"

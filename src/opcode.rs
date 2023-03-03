@@ -14,9 +14,9 @@ use rustix::io_uring;
 use crate::types::{
     sealed, AcceptFlags, Advice, AtFlags, DestinationSlot, Fixed, IoringAcceptFlags,
     IoringAsyncCancelFlags, IoringFsyncFlags, IoringMsgringCmds, IoringMsgringFlags, IoringOp,
-    IoringPollFlags, IoringRecvsendFlags, IoringSqeFlags, IoringTimeoutFlags, IoringUserData,
-    OFlags, OpenHow, RawFd, ReadWriteFlags, RecvFlags, RenameFlags, SendFlags, SpliceFlags,
-    Timespec,
+    IoringPollFlags, IoringRecvFlags, IoringSendFlags, IoringSqeFlags, IoringTimeoutFlags,
+    IoringUserData, OFlags, OpenHow, RawFd, ReadWriteFlags, RecvFlags, RenameFlags, SendFlags,
+    SpliceFlags, Timespec,
 };
 
 macro_rules! assign_fd {
@@ -560,7 +560,7 @@ opcode!(
         msg: { *const libc::msghdr },
         buf_group: { u16 },
         ;;
-        ioprio: IoringRecvsendFlags = IoringRecvsendFlags::empty(),
+        ioprio: IoringRecvFlags = IoringRecvFlags::empty(),
         flags: RecvFlags = RecvFlags::empty()
     }
 
@@ -577,7 +577,7 @@ opcode!(
         sqe.op_flags.recv_flags = flags;
         sqe.buf.buf_group = buf_group;
         sqe.flags |= IoringSqeFlags::BUFFER_SELECT;
-        sqe.ioprio.recvsend_flags = ioprio | IoringRecvsendFlags::MULTISHOT;
+        sqe.ioprio.recv_flags = ioprio | IoringRecvFlags::MULTISHOT;
         Entry(sqe)
     }
 );
@@ -1206,7 +1206,7 @@ opcode!(
         sqe.op_flags.recv_flags = flags;
         sqe.buf.buf_group = buf_group;
         sqe.flags |= IoringSqeFlags::BUFFER_SELECT;
-        sqe.ioprio.recvsend_flags = IoringRecvsendFlags::MULTISHOT;
+        sqe.ioprio.recv_flags = IoringRecvFlags::MULTISHOT;
         Entry(sqe)
     }
 );
@@ -1719,7 +1719,7 @@ opcode!(
         /// registered buffer.
         buf_index: Option<u16> = None,
         flags: SendFlags = SendFlags::empty(),
-        zc_flags: IoringRecvsendFlags = IoringRecvsendFlags::empty(),
+        zc_flags: IoringSendFlags = IoringSendFlags::empty(),
     }
 
     pub const CODE = IoringOp::SendZc;
@@ -1733,10 +1733,10 @@ opcode!(
         sqe.addr_or_splice_off_in.addr = to_iouring_ptr(buf.cast_mut());
         sqe.len.len = len;
         sqe.op_flags.send_flags = flags;
-        sqe.ioprio.recvsend_flags = zc_flags;
+        sqe.ioprio.send_flags = zc_flags;
         if let Some(buf_index) = buf_index {
             sqe.buf.buf_index = buf_index;
-            unsafe { sqe.ioprio.recvsend_flags |= IoringRecvsendFlags::FIXED_BUF; }
+            unsafe { sqe.ioprio.send_flags |= IoringSendFlags::FIXED_BUF; }
         }
         Entry(sqe)
     }

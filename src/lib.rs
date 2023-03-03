@@ -420,7 +420,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> Builder<S, C> {
     /// example via any of the CQE waiting functions) or else completions may not be delivered.
     /// Available since 6.1.
     pub fn setup_defer_taskrun(&mut self) -> &mut Self {
-        self.params.flags |= IoringSetupFlags::SETUP_DEFER_TASKRUN;
+        self.params.flags |= IoringSetupFlags::DEFER_TASKRUN;
         self
     }
 
@@ -429,7 +429,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> Builder<S, C> {
     /// If [`Builder::setup_sqpoll`] is enabled, the polling task is doing the submissions and multiple
     /// userspace tasks can call [`Submitter::enter`] and higher level APIs. Available since 6.0.
     pub fn setup_single_issuer(&mut self) -> &mut Self {
-        self.params.flags |= IoringSetupFlags::SETUP_SINGLE_ISSUER;
+        self.params.flags |= IoringSetupFlags::SINGLE_ISSUER;
         self
     }
 
@@ -464,9 +464,7 @@ impl Parameters {
 
     /// Whether the single issuer hint is enabled. Enabled with [`Builder::setup_single_issuer`].
     pub fn is_setup_single_issuer(&self) -> bool {
-        self.0
-            .flags
-            .intersects(IoringSetupFlags::SETUP_SINGLE_ISSUER)
+        self.0.flags.intersects(IoringSetupFlags::SINGLE_ISSUER)
     }
 
     /// If this flag is set, the SQ and CQ rings were mapped with a single `mmap(2)` call. This
