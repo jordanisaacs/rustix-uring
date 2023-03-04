@@ -2,7 +2,7 @@ use core::ptr;
 use core::sync::atomic;
 
 use rustix::io;
-use rustix::mm::{madvise, mmap, Advice, MapFlags, ProtFlags};
+use rustix::mm::{madvise, mmap, munmap, Advice, MapFlags, ProtFlags};
 
 use crate::types::OwnedFd;
 
@@ -53,7 +53,7 @@ impl Mmap {
 impl Drop for Mmap {
     fn drop(&mut self) {
         unsafe {
-            libc::munmap(self.addr.as_ptr(), self.len);
+            munmap(self.addr.as_ptr(), self.len).ok();
         }
     }
 }
