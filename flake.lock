@@ -112,6 +112,23 @@
         "type": "github"
       }
     },
+    "crate2nix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1679287038,
+        "narHash": "sha256-t+OXgIcTKhil/uq5ToIfEhnIRTY10xx4CD++S7l+X5g=",
+        "owner": "jordanisaacs",
+        "repo": "crate2nix",
+        "rev": "597b33efe35b2e94994ddeee6b023102a9f6cd47",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jordanisaacs",
+        "ref": "kinds",
+        "repo": "crate2nix",
+        "type": "github"
+      }
+    },
     "crates-nvim": {
       "flake": false,
       "locked": {
@@ -465,16 +482,16 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1673497281,
-        "narHash": "sha256-a9AFfSq6sC/oLqVJr5BqDeO6CZ6exba24hwZh872YJQ=",
+        "lastModified": 1679282979,
+        "narHash": "sha256-vdOiRDIsGxxZxTFmygzrww1bPCfucGiSMwhQV0xlCxw=",
         "owner": "jordanisaacs",
         "repo": "nixpkgs",
-        "rev": "0206a083136cbb1f319fc0c1b6517d2916b31a5a",
+        "rev": "ba1f86f0f8c155b1d10fa306cdd321cd91c73bba",
         "type": "github"
       },
       "original": {
         "owner": "jordanisaacs",
-        "ref": "aoc-cli-init",
+        "ref": "brc-kinds",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -806,6 +823,7 @@
     },
     "root": {
       "inputs": {
+        "crate2nix": "crate2nix",
         "neovim-flake": "neovim-flake",
         "nixpkgs": "nixpkgs_4",
         "rust-overlay": "rust-overlay_2"

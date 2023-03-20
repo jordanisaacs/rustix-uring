@@ -2,3 +2,6 @@
 **/*.rs.bk
 Cargo.lock
 include-file.h
+
+/result
+/result-lib
