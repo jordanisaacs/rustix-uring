@@ -64,13 +64,12 @@ jobs:
       matrix:
         toolchain:
           - nightly
-          - "1.48"
+          - "1.65"
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
           - i686-unknown-linux-gnu
           - aarch64-unknown-linux-gnu
-          - mips64-unknown-linux-gnuabi64
 
     steps:
       - uses: actions/checkout@v3
