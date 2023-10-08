@@ -1,5 +1,6 @@
 //! Some register syscall related types or parameters.
 
+use core::ffi::c_void;
 use core::{fmt, mem, ptr};
 
 use rustix::{io, io_uring};
@@ -12,7 +13,7 @@ use crate::types::{
 pub(crate) fn execute<Fd: AsFd>(
     fd: Fd,
     opcode: IoringRegisterOp,
-    arg: *const libc::c_void,
+    arg: *const c_void,
     len: u32,
 ) -> io::Result<u32> {
     unsafe { io_uring::io_uring_register(fd, opcode, arg, len) }

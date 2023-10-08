@@ -2,6 +2,7 @@
 // The entry point in this file can be found by searching for 'pub'.
 
 use std::cell::Cell;
+use std::ffi::c_void;
 use std::fmt;
 use std::io;
 use std::os::unix::io::AsRawFd;
@@ -22,7 +23,7 @@ type Bid = u16; // Buffer id
 /// An anonymous region of memory mapped using `mmap(2)`, not backed by a file
 /// but that is guaranteed to be page-aligned and zero-filled.
 pub struct AnonymousMmap {
-    addr: ptr::NonNull<libc::c_void>,
+    addr: ptr::NonNull<c_void>,
     len: usize,
 }
 
@@ -58,27 +59,27 @@ impl AnonymousMmap {
 
     /// Get a pointer to the memory.
     #[inline]
-    pub fn as_ptr(&self) -> *const libc::c_void {
+    pub fn as_ptr(&self) -> *const c_void {
         self.addr.as_ptr()
     }
 
     /// Get a mut pointer to the memory.
     #[inline]
-    pub fn as_ptr_mut(&self) -> *mut libc::c_void {
+    pub fn as_ptr_mut(&self) -> *mut c_void {
         self.addr.as_ptr()
     }
 
     /// Get a pointer to the data at the given offset.
     #[inline]
     #[allow(dead_code)]
-    pub unsafe fn offset(&self, offset: u32) -> *const libc::c_void {
+    pub unsafe fn offset(&self, offset: u32) -> *const c_void {
         self.as_ptr().add(offset as usize)
     }
 
     /// Get a mut pointer to the data at the given offset.
     #[inline]
     #[allow(dead_code)]
-    pub unsafe fn offset_mut(&self, offset: u32) -> *mut libc::c_void {
+    pub unsafe fn offset_mut(&self, offset: u32) -> *mut c_void {
         self.as_ptr_mut().add(offset as usize)
     }
 }

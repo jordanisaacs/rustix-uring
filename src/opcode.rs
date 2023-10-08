@@ -3,6 +3,7 @@
 #![allow(clippy::new_without_default)]
 
 use core::convert::TryInto;
+use core::ffi::c_void;
 use core::mem;
 
 use crate::squeue::Entry;
@@ -1099,7 +1100,7 @@ impl Fadvise {
 opcode!(
     /// Give advice about use of memory, equivalent to `madvise(2)`.
     pub struct Madvise {
-        addr: { *const libc::c_void },
+        addr: { *const c_void },
         len: { libc::off_t },
         advice: { Advice },
         ;;
