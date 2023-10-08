@@ -17,7 +17,7 @@ pub use rustix::io_uring::{
     IoringRegisterOp, IoringRestrictionOp, IoringRsrcFlags, IoringSendFlags, IoringSetupFlags,
     IoringSqFlags, IoringSqeFlags, IoringTimeoutFlags, RecvmsgOutFlags, SpliceFlags,
 };
-pub use rustix::net::{AcceptFlags, RecvFlags, SendFlags};
+pub use rustix::net::{RecvFlags, SendFlags, SocketFlags};
 pub use rustix::time::Timespec;
 
 pub(crate) mod sealed {

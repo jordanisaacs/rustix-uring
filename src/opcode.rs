@@ -12,11 +12,11 @@ use libc::epoll_event;
 use rustix::io_uring;
 
 use crate::types::{
-    sealed, AcceptFlags, Advice, AtFlags, DestinationSlot, Fixed, IoringAcceptFlags,
-    IoringAsyncCancelFlags, IoringFsyncFlags, IoringMsgringCmds, IoringMsgringFlags, IoringOp,
-    IoringPollFlags, IoringRecvFlags, IoringSendFlags, IoringSqeFlags, IoringTimeoutFlags,
-    IoringUserData, OFlags, OpenHow, RawFd, ReadWriteFlags, RecvFlags, RenameFlags, SendFlags,
-    SpliceFlags, Timespec,
+    sealed, Advice, AtFlags, DestinationSlot, Fixed, IoringAcceptFlags, IoringAsyncCancelFlags,
+    IoringFsyncFlags, IoringMsgringCmds, IoringMsgringFlags, IoringOp, IoringPollFlags,
+    IoringRecvFlags, IoringSendFlags, IoringSqeFlags, IoringTimeoutFlags, IoringUserData, OFlags,
+    OpenHow, RawFd, ReadWriteFlags, RecvFlags, RenameFlags, SendFlags, SocketFlags, SpliceFlags,
+    Timespec,
 };
 
 macro_rules! assign_fd {
@@ -650,7 +650,7 @@ opcode!(
         addrlen: { *mut libc::socklen_t },
         ;;
         file_index: Option<DestinationSlot> = None,
-        flags: AcceptFlags = AcceptFlags::empty()
+        flags: SocketFlags = SocketFlags::empty()
     }
 
     pub const CODE = IoringOp::Accept;
@@ -679,7 +679,7 @@ opcode!(
         fd: { impl sealed::UseFixed },
         ;;
         allocate_file_index: bool = false,
-        flags: AcceptFlags = AcceptFlags::empty()
+        flags: SocketFlags = SocketFlags::empty()
     }
 
     pub const CODE = IoringOp::Accept;
