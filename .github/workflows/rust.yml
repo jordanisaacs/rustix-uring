@@ -64,7 +64,7 @@ jobs:
       matrix:
         toolchain:
           - nightly
-          - "1.63"
+          - "1.65"
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
