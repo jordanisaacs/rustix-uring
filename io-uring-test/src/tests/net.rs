@@ -204,7 +204,7 @@ pub fn test_tcp_zero_copy_send_fixed<S: squeue::EntryMarker, C: cqueue::EntryMar
     let _ = ring.submitter().unregister_buffers();
 
     let mut buf0 = vec![0; 1024];
-    let iovec = libc::iovec {
+    let iovec = io_uring::sys::iovec {
         iov_base: buf0.as_ptr() as _,
         iov_len: buf0.len() as _,
     };
@@ -293,12 +293,12 @@ pub fn test_tcp_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let mut bufs2 = [io::IoSliceMut::new(&mut buf2)];
 
     // build sendmsg
-    let mut msg = MaybeUninit::<libc::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
         (*p).msg_name = sockaddr.as_ptr() as *const _ as *mut _;
-        (*p).msg_namelen = sockaddr.len();
+        (*p).msg_namelen = sockaddr.len() as _;
         (*p).msg_iov = bufs.as_ptr() as *const _ as *mut _;
         (*p).msg_iovlen = 1;
     }
@@ -306,12 +306,12 @@ pub fn test_tcp_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let sendmsg_e = opcode::SendMsg::new(send_fd, msg.as_ptr());
 
     // build recvmsg
-    let mut msg = MaybeUninit::<libc::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
         (*p).msg_name = sockaddr.as_ptr() as *const _ as *mut _;
-        (*p).msg_namelen = sockaddr.len();
+        (*p).msg_namelen = sockaddr.len() as _;
         (*p).msg_iov = bufs2.as_mut_ptr() as *mut _;
         (*p).msg_iovlen = 1;
     }
@@ -378,12 +378,12 @@ pub fn test_tcp_zero_copy_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::Ent
     let mut bufs2 = [io::IoSliceMut::new(&mut buf2)];
 
     // build sendmsg
-    let mut msg = MaybeUninit::<libc::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
         (*p).msg_name = sockaddr.as_ptr() as *const _ as *mut _;
-        (*p).msg_namelen = sockaddr.len();
+        (*p).msg_namelen = sockaddr.len() as _;
         (*p).msg_iov = bufs.as_ptr() as *const _ as *mut _;
         (*p).msg_iovlen = 1;
     }
@@ -391,12 +391,12 @@ pub fn test_tcp_zero_copy_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::Ent
     let sendmsg_e = opcode::SendMsgZc::new(send_fd, msg.as_ptr());
 
     // build recvmsg
-    let mut msg = MaybeUninit::<libc::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
         (*p).msg_name = sockaddr.as_ptr() as *const _ as *mut _;
-        (*p).msg_namelen = sockaddr.len();
+        (*p).msg_namelen = sockaddr.len() as _;
         (*p).msg_iov = bufs2.as_mut_ptr() as *mut _;
         (*p).msg_iovlen = 1;
     }
@@ -466,8 +466,8 @@ pub fn test_tcp_accept<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let _stream = TcpStream::connect(addr)?;
 
-    let mut sockaddr: libc::sockaddr = unsafe { mem::zeroed() };
-    let mut addrlen: libc::socklen_t = mem::size_of::<libc::sockaddr>() as _;
+    let mut sockaddr: io_uring::sys::sockaddr = unsafe { mem::zeroed() };
+    let mut addrlen: io_uring::sys::socklen_t = mem::size_of::<io_uring::sys::sockaddr>() as _;
 
     let accept_e = opcode::Accept::new(fd, &mut sockaddr, &mut addrlen);
 
@@ -518,8 +518,8 @@ pub fn test_tcp_accept_file_index<S: squeue::EntryMarker, C: cqueue::EntryMarker
 
     let _stream = TcpStream::connect(addr)?;
 
-    let mut sockaddr: libc::sockaddr = unsafe { mem::zeroed() };
-    let mut addrlen: libc::socklen_t = mem::size_of::<libc::sockaddr>() as _;
+    let mut sockaddr: io_uring::sys::sockaddr = unsafe { mem::zeroed() };
+    let mut addrlen: io_uring::sys::socklen_t = mem::size_of::<io_uring::sys::sockaddr>() as _;
 
     let dest_slot = types::DestinationSlot::try_from_slot_target(4).unwrap();
     let accept_e = opcode::Accept::new(fd, &mut sockaddr, &mut addrlen);
@@ -954,10 +954,10 @@ pub fn test_tcp_buffer_select_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMa
     send_stream.write_all(&[0x57u8; 1024])?;
 
     // recvmsg
-    let mut msg: libc::msghdr = unsafe { std::mem::zeroed() };
-    let mut iovecs: [libc::iovec; 1] = unsafe { std::mem::zeroed() };
+    let mut msg: io_uring::sys::msghdr = unsafe { std::mem::zeroed() };
+    let mut iovecs: [io_uring::sys::iovec; 1] = unsafe { std::mem::zeroed() };
     iovecs[0].iov_len = 1024; // This can be used to reduce the length of the read.
-    msg.msg_iov = &mut iovecs as *mut _;
+    msg.msg_iov = &mut iovecs as *mut _ as *mut _;
     msg.msg_iovlen = 1; // 2 results in EINVAL, Invalid argument, being returned in result.
 
     // N.B. This op will only support a BUFFER_SELECT when the msg.msg_iovlen is 1;
@@ -1042,7 +1042,7 @@ pub fn test_tcp_buffer_select_readv<S: squeue::EntryMarker, C: cqueue::EntryMark
     // send for readv
     send_stream.write_all(&[0x7bu8; 512])?;
 
-    let iovec = libc::iovec {
+    let iovec = io_uring::sys::iovec {
         iov_base: std::ptr::null_mut(),
         iov_len: 512, // Bug in earlier kernels requires this length to be the buffer pool
                       // length. By 6.1, this could be passed in as zero.
@@ -1329,7 +1329,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
 
     // This structure is actually only used for input arguments to the kernel
     // (and only name length and control length are actually relevant).
-    let mut msghdr: libc::msghdr = unsafe { std::mem::zeroed() };
+    let mut msghdr: io_uring::sys::msghdr = unsafe { std::mem::zeroed() };
     msghdr.msg_namelen = 32;
     msghdr.msg_controllen = 0;
 
@@ -1354,9 +1354,9 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     let bufs1 = [io::IoSlice::new(b"testfooo for me")];
     let bufs2 = [io::IoSlice::new(b"testbarbar for you and me")];
 
-    let mut msghdr1: libc::msghdr = unsafe { mem::zeroed() };
+    let mut msghdr1: io_uring::sys::msghdr = unsafe { mem::zeroed() };
     msghdr1.msg_name = server_addr.as_ptr() as *const _ as *mut _;
-    msghdr1.msg_namelen = server_addr.len();
+    msghdr1.msg_namelen = server_addr.len() as _;
     msghdr1.msg_iov = bufs1.as_ptr() as *const _ as *mut _;
     msghdr1.msg_iovlen = 1;
 
@@ -1368,9 +1368,9 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     unsafe { ring.submission().push(&send_msg_1)? };
     ring.submitter().submit().unwrap();
 
-    let mut msghdr2: libc::msghdr = unsafe { mem::zeroed() };
+    let mut msghdr2: io_uring::sys::msghdr = unsafe { mem::zeroed() };
     msghdr2.msg_name = server_addr.as_ptr() as *const _ as *mut _;
-    msghdr2.msg_namelen = server_addr.len();
+    msghdr2.msg_namelen = server_addr.len() as _;
     msghdr2.msg_iov = bufs2.as_ptr() as *const _ as *mut _;
     msghdr2.msg_iovlen = 1;
 
@@ -1416,15 +1416,14 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
                 assert_eq!(msg.control_data(), &[]);
                 assert!(!msg.is_name_data_truncated());
                 let addr = unsafe {
-                    let storage = msg
-                        .name_data()
-                        .as_ptr()
-                        .cast::<libc::sockaddr_storage>()
-                        .read_unaligned();
+                    let storage = msg.name_data().as_ptr().cast();
                     let len = msg.name_data().len().try_into().unwrap();
-                    socket2::SockAddr::new(storage, len)
+                    rustix::net::SocketAddrAny::read(storage, len).unwrap()
                 };
-                let addr = addr.as_socket_ipv4().unwrap();
+                let addr = match addr {
+                    rustix::net::SocketAddrAny::V4(v4) => v4,
+                    _ => unreachable!(),
+                };
                 assert_eq!(addr.ip(), client_addr.ip());
                 assert_eq!(addr.port(), client_addr.port());
             }
@@ -1451,8 +1450,10 @@ pub fn test_udp_sendzc_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>
 
     println!("test udp_sendzc_with_dest");
 
-    let server_socket: socket2::Socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap().into();
-    let dest_addr = server_socket.local_addr()?;
+    let server_socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+    let dest_addr: rustix::net::SocketAddrAny = server_socket.local_addr()?.into();
+    let mut dest_addr_storage = unsafe { std::mem::zeroed::<rustix::net::SocketAddrStorage>() };
+    let dest_addr_len = unsafe { dest_addr.write(&mut dest_addr_storage) };
 
     // Provide 2 buffers in buffer group `33`, at index 0 and 1.
     // Each one is 512 bytes large.
@@ -1493,8 +1494,8 @@ pub fn test_udp_sendzc_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>
 
     // 2 self events + 1 recv
     let entry1 = opcode::SendZc::new(Fd(fd), buf1.as_ptr(), buf1.len() as _)
-        .dest_addr(dest_addr.as_ptr())
-        .dest_addr_len(dest_addr.len())
+        .dest_addr(&mut dest_addr_storage)
+        .dest_addr_len(dest_addr_len as _)
         .build()
         .user_data(33)
         .flags(Flags::IO_LINK)

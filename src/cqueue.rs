@@ -211,7 +211,7 @@ impl Entry {
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
-    pub fn user_data_ptr(&self) -> *mut libc::c_void {
+    pub fn user_data_ptr(&self) -> *mut core::ffi::c_void {
         self.0.user_data.ptr()
     }
 
@@ -267,7 +267,7 @@ impl Entry32 {
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
-    pub fn user_data_ptr(&self) -> *mut libc::c_void {
+    pub fn user_data_ptr(&self) -> *mut core::ffi::c_void {
         self.0 .0.user_data.ptr()
     }
 
