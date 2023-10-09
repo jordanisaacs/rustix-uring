@@ -1,8 +1,8 @@
-use std::os::unix::io::RawFd;
-use std::sync::atomic;
-use std::{io, mem, ptr};
+use core::sync::atomic;
+use core::{mem, ptr};
 
-use rustix::fd::OwnedFd;
+use rustix::fd::{OwnedFd, RawFd};
+use rustix::io;
 
 use crate::register::{execute, Probe};
 use crate::sys;
@@ -97,7 +97,7 @@ impl<'a> Submitter<'a> {
         let arg = arg
             .map(|arg| cast_ptr(arg).cast())
             .unwrap_or_else(ptr::null);
-        let size = std::mem::size_of::<T>();
+        let size = core::mem::size_of::<T>();
         let result = sys::io_uring_enter(self.fd, to_submit, min_complete, flag, arg, size)?;
         Ok(result as _)
     }

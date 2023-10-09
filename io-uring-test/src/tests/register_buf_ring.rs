@@ -4,7 +4,7 @@
 use crate::Test;
 use io_uring::types;
 use io_uring::types::BufRingEntry;
-use io_uring::{cqueue, opcode, squeue, IoUring};
+use io_uring::{cqueue, opcode, squeue, Errno, IoUring};
 
 use std::cell::Cell;
 use std::fmt;
@@ -197,15 +197,15 @@ impl InnerBufRing {
         };
 
         if let Err(e) = res {
-            match e.raw_os_error() {
-                Some(libc::EINVAL) => {
+            match e {
+                Errno::INVAL => {
                     // using buf_ring requires kernel 5.19 or greater.
                     return Err(io::Error::new(
                             io::ErrorKind::Other,
                             format!("buf_ring.register returned {}, most likely indicating this kernel is not 5.19+", e),
                             ));
                 }
-                Some(libc::EEXIST) => {
+                Errno::EXIST => {
                     // Registering a duplicate bgid is not allowed. There is an `unregister`
                     // operations that can remove the first, but care must be taken that there
                     // are no outstanding operations that will still return a buffer from that
@@ -234,7 +234,7 @@ impl InnerBufRing {
         }
         self.buf_ring_sync();
 
-        res
+        Ok(res?)
     }
 
     // Unregister the buffer ring from the io_uring.
@@ -246,7 +246,7 @@ impl InnerBufRing {
     {
         let bgid = self.bgid;
 
-        ring.submitter().unregister_buf_ring(bgid)
+        Ok(ring.submitter().unregister_buf_ring(bgid)?)
     }
 
     // Returns the buffer group id.

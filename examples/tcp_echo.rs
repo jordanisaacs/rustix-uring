@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::{io, ptr};
 
-use io_uring::{opcode, squeue, types, IoUring, SubmissionQueue};
+use io_uring::{opcode, squeue, types, Errno, IoUring, SubmissionQueue};
 use slab::Slab;
 
 #[derive(Clone, Debug)]
@@ -73,7 +73,7 @@ fn main() -> anyhow::Result<()> {
     loop {
         match submitter.submit_and_wait(1) {
             Ok(_) => (),
-            Err(ref err) if err.raw_os_error() == Some(libc::EBUSY) => (),
+            Err(Errno::BUSY) => (),
             Err(err) => return Err(err.into()),
         }
         cq.sync();
@@ -83,7 +83,7 @@ fn main() -> anyhow::Result<()> {
             if sq.is_full() {
                 match submitter.submit() {
                     Ok(_) => (),
-                    Err(ref err) if err.raw_os_error() == Some(libc::EBUSY) => break,
+                    Err(Errno::BUSY) => break,
                     Err(err) => return Err(err.into()),
                 }
             }

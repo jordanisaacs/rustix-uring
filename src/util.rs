@@ -1,8 +1,9 @@
+use core::num::NonZeroU32;
+use core::ptr;
+use core::sync::atomic;
 use rustix::fd::OwnedFd;
+use rustix::io;
 use rustix::mm::{Advice, MapFlags, ProtFlags};
-use std::num::NonZeroU32;
-use std::sync::atomic;
-use std::{io, ptr};
 
 pub(crate) mod private {
     /// Private trait that we use as a supertrait of `EntryMarker` to prevent it from being

@@ -18,13 +18,14 @@ exclude = []
 members = [ "io-uring-test", "io-uring-bench" ]
 
 [features]
-io_safety = []
+default = ["std"]
+std = ["rustix/std", "bitflags/std", "libc/std"]
 
 [dependencies]
-bitflags = "2.4.0"
+bitflags = { version = "2.4.0", default-features = false }
 
 libc = { version = "0.2.98", default-features = false }
-rustix = { version = "0.38.32", features = ["io_uring", "mm"] }
+rustix = { version = "0.38.32", default-features = false, features = ["io_uring", "mm"] }
 
 [dev-dependencies]
 anyhow = "1"

@@ -2,7 +2,7 @@
 
 pub(crate) mod sealed {
     use super::{Fd, Fixed};
-    use std::os::unix::io::RawFd;
+    use rustix::fd::RawFd;
 
     #[derive(Debug)]
     pub enum Target {
@@ -43,10 +43,10 @@ pub(crate) mod sealed {
 use crate::sys;
 use crate::util::{cast_ptr, unwrap_nonzero, unwrap_u32};
 use bitflags::bitflags;
-use std::convert::TryFrom;
-use std::marker::PhantomData;
-use std::num::NonZeroU32;
-use std::os::unix::io::RawFd;
+use core::convert::TryFrom;
+use core::marker::PhantomData;
+use core::num::NonZeroU32;
+use rustix::fd::RawFd;
 
 pub use rustix::io::ReadWriteFlags as RwFlags;
 
@@ -205,6 +205,7 @@ impl Timespec {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<std::time::Duration> for Timespec {
     fn from(value: std::time::Duration) -> Self {
         Timespec::new()
@@ -259,7 +260,7 @@ impl<'prev, 'now> SubmitArgs<'prev, 'now> {
     #[inline]
     pub fn sigmask<'new>(mut self, sigmask: &'new libc::sigset_t) -> SubmitArgs<'now, 'new> {
         self.args.sigmask = cast_ptr(sigmask) as _;
-        self.args.sigmask_sz = std::mem::size_of::<libc::sigset_t>() as _;
+        self.args.sigmask_sz = core::mem::size_of::<libc::sigset_t>() as _;
 
         SubmitArgs {
             args: self.args,
@@ -394,7 +395,7 @@ pub struct RecvMsgOut<'buf> {
 }
 
 impl<'buf> RecvMsgOut<'buf> {
-    const DATA_START: usize = std::mem::size_of::<sys::io_uring_recvmsg_out>();
+    const DATA_START: usize = core::mem::size_of::<sys::io_uring_recvmsg_out>();
 
     /// Parse the data buffered upon completion of a `RecvMsg` multishot operation.
     ///

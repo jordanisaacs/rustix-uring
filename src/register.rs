@@ -1,7 +1,9 @@
 //! Some register syscall related types or parameters.
 
+use core::fmt;
 use rustix::fd::{AsFd, BorrowedFd};
-use std::{fmt, io};
+
+use rustix::io;
 
 use crate::sys;
 
@@ -95,7 +97,7 @@ pub struct Restriction(sys::io_uring_restriction);
 /// inline zeroed to improve codegen
 #[inline(always)]
 fn res_zeroed() -> sys::io_uring_restriction {
-    unsafe { std::mem::zeroed() }
+    unsafe { core::mem::zeroed() }
 }
 
 impl Restriction {
