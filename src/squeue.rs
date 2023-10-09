@@ -1,9 +1,10 @@
 //! Submission Queue
 
+use core::fmt::{self, Debug, Display, Formatter};
+use core::mem;
+use core::sync::atomic;
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::fmt::{self, Debug, Display, Formatter};
-use std::mem;
-use std::sync::atomic;
 
 use crate::sys;
 use crate::util::{private, unsync_load, Mmap};
@@ -469,6 +470,7 @@ impl Display for PushError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for PushError {}
 
 impl<E: EntryMarker> Debug for SubmissionQueue<'_, E> {

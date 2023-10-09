@@ -2,9 +2,10 @@
 
 #![allow(clippy::new_without_default)]
 
-use std::convert::TryInto;
-use std::mem;
-use std::os::unix::io::RawFd;
+use core::convert::TryInto;
+use core::mem;
+
+use rustix::fd::RawFd;
 
 use crate::squeue::Entry;
 use crate::squeue::Entry128;
