@@ -3,6 +3,7 @@
 //! The crate only provides a summary of the parameters.
 //! For more detailed documentation, see manpage.
 #![warn(rust_2018_idioms, unused_qualifications)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
 mod util;
@@ -13,16 +14,13 @@ pub mod squeue;
 mod submit;
 pub use rustix::io_uring as sys;
 pub mod types;
+pub use rustix::io::{Errno, Result};
 
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::os::unix::io::{AsRawFd, RawFd};
-use std::{cmp, io, mem};
+use core::marker::PhantomData;
+use core::mem::ManuallyDrop;
+use core::{cmp, mem};
 
-#[cfg(feature = "io_safety")]
-use std::os::unix::io::{AsFd, BorrowedFd};
-
-use rustix::fd::OwnedFd;
+use rustix::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
 
 pub use cqueue::CompletionQueue;
 pub use register::Probe;
@@ -80,7 +78,7 @@ impl IoUring<squeue::Entry, cqueue::Entry> {
     ///
     /// The `entries` sets the size of queue,
     /// and its value should be the power of two.
-    pub fn new(entries: u32) -> io::Result<Self> {
+    pub fn new(entries: u32) -> Result<Self> {
         Self::builder().build(entries)
     }
 }
@@ -104,7 +102,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> IoUring<S, C> {
         }
     }
 
-    fn with_params(entries: u32, mut p: sys::io_uring_params) -> io::Result<Self> {
+    fn with_params(entries: u32, mut p: sys::io_uring_params) -> Result<Self> {
         // NOTE: The `SubmissionQueue` and `CompletionQueue` are references,
         // and their lifetime can never exceed `MemoryMap`.
         //
@@ -116,7 +114,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> IoUring<S, C> {
         unsafe fn setup_queue<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             fd: &OwnedFd,
             p: &sys::io_uring_params,
-        ) -> io::Result<(MemoryMap, squeue::Inner<S>, cqueue::Inner<C>)> {
+        ) -> Result<(MemoryMap, squeue::Inner<S>, cqueue::Inner<C>)> {
             let sq_len = p.sq_off.array as usize + p.sq_entries as usize * mem::size_of::<u32>();
             let cq_len = p.cq_off.cqes as usize + p.cq_entries as usize * mem::size_of::<C>();
             let sqe_len = p.sq_entries as usize * mem::size_of::<S>();
@@ -185,14 +183,14 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> IoUring<S, C> {
 
     /// Initiate asynchronous I/O. See [`Submitter::submit`] for more details.
     #[inline]
-    pub fn submit(&self) -> io::Result<usize> {
+    pub fn submit(&self) -> Result<usize> {
         self.submitter().submit()
     }
 
     /// Initiate and/or complete asynchronous I/O. See [`Submitter::submit_and_wait`] for more
     /// details.
     #[inline]
-    pub fn submit_and_wait(&self, want: usize) -> io::Result<usize> {
+    pub fn submit_and_wait(&self, want: usize) -> Result<usize> {
         self.submitter().submit_and_wait(want)
     }
 
@@ -410,7 +408,7 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> Builder<S, C> {
 
     /// Build an [IoUring], with the specified number of entries in the submission queue and
     /// completion queue unless [`setup_cqsize`](Self::setup_cqsize) has been called.
-    pub fn build(&self, entries: u32) -> io::Result<IoUring<S, C>> {
+    pub fn build(&self, entries: u32) -> Result<IoUring<S, C>> {
         let ring = IoUring::with_params(entries, self.params)?;
 
         if self.dontfork {
@@ -602,8 +600,8 @@ impl Parameters {
     }
 }
 
-impl std::fmt::Debug for Parameters {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Parameters {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Parameters")
             .field("is_setup_sqpoll", &self.is_setup_sqpoll())
             .field("is_setup_iopoll", &self.is_setup_iopoll())
@@ -629,7 +627,6 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> AsRawFd for IoUring<S, C> {
     }
 }
 
-#[cfg(feature = "io_safety")]
 impl AsFd for IoUring {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.fd.as_fd()

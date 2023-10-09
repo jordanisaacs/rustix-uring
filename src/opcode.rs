@@ -2,9 +2,10 @@
 
 #![allow(clippy::new_without_default)]
 
-use std::convert::TryInto;
-use std::mem;
-use std::os::unix::io::RawFd;
+use core::convert::TryInto;
+use core::mem;
+
+use rustix::fd::RawFd;
 
 use crate::squeue::Entry;
 use crate::squeue::Entry128;
@@ -97,7 +98,7 @@ macro_rules! opcode {
 /// inline zeroed to improve codegen
 #[inline(always)]
 fn sqe_zeroed() -> sys::io_uring_sqe {
-    unsafe { std::mem::zeroed() }
+    unsafe { core::mem::zeroed() }
 }
 
 opcode! {

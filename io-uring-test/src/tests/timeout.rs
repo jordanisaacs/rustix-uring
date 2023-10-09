@@ -1,5 +1,5 @@
 use crate::Test;
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
+use io_uring::{cqueue, opcode, squeue, types, Errno, IoUring};
 use std::time::Instant;
 
 pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
@@ -352,7 +352,7 @@ pub fn test_timeout_submit_args<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let start = Instant::now();
     match ring.submitter().submit_with_args(1, &args) {
         Ok(_) => panic!(),
-        Err(ref err) if err.raw_os_error() == Some(libc::ETIME) => (),
+        Err(Errno::TIME) => (),
         Err(err) => return Err(err.into()),
     }
     assert_eq!(start.elapsed().as_secs(), 1);
