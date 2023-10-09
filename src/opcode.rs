@@ -125,7 +125,7 @@ opcode! {
     #[derive(Debug)]
     pub struct Readv {
         fd: { impl sealed::UseFixed },
-        iovec: { *const libc::iovec },
+        iovec: { *const sys::iovec },
         len: { u32 },
         ;;
         ioprio: u16 = 0,
@@ -164,7 +164,7 @@ opcode! {
     #[derive(Debug)]
     pub struct Writev {
         fd: { impl sealed::UseFixed },
-        iovec: { *const libc::iovec },
+        iovec: { *const sys::iovec },
         len: { u32 },
         ;;
         ioprio: u16 = 0,
@@ -426,7 +426,7 @@ opcode! {
     #[derive(Debug)]
     pub struct SendMsg {
         fd: { impl sealed::UseFixed },
-        msg: { *const libc::msghdr },
+        msg: { *const sys::msghdr },
         ;;
         ioprio: u16 = 0,
         flags: sys::SendFlags = sys::SendFlags::empty()
@@ -455,7 +455,7 @@ opcode! {
     #[derive(Debug)]
     pub struct RecvMsg {
         fd: { impl sealed::UseFixed },
-        msg: { *mut libc::msghdr },
+        msg: { *mut sys::msghdr },
         ;;
         ioprio: u16 = 0,
         flags: sys::RecvFlags = sys::RecvFlags::empty(),
@@ -505,7 +505,7 @@ opcode! {
     #[derive(Debug)]
     pub struct RecvMsgMulti {
         fd: { impl sealed::UseFixed },
-        msg: { *const libc::msghdr },
+        msg: { *const sys::msghdr },
         buf_group: { u16 },
         ;;
         ioprio: sys::IoringRecvFlags = sys::IoringRecvFlags::empty(),
@@ -617,8 +617,8 @@ opcode! {
     /// Accept a new connection on a socket, equivalent to `accept4(2)`.
     pub struct Accept {
         fd: { impl sealed::UseFixed },
-        addr: { *mut libc::sockaddr },
-        addrlen: { *mut libc::socklen_t },
+        addr: { *mut sys::sockaddr },
+        addrlen: { *mut sys::socklen_t },
         ;;
         file_index: Option<types::DestinationSlot> = None,
         flags: sys::SocketFlags = sys::SocketFlags::empty()
@@ -693,8 +693,8 @@ opcode! {
     /// Connect a socket, equivalent to `connect(2)`.
     pub struct Connect {
         fd: { impl sealed::UseFixed },
-        addr: { *const libc::sockaddr },
-        addrlen: { libc::socklen_t }
+        addr: { *const sys::sockaddr },
+        addrlen: { sys::socklen_t }
         ;;
     }
 
@@ -743,11 +743,11 @@ opcode! {
     /// Open a file, equivalent to `openat(2)`.
     pub struct OpenAt {
         dirfd: { impl sealed::UseFd },
-        pathname: { *const libc::c_char },
+        pathname: { *const sys::c_char },
         ;;
         file_index: Option<types::DestinationSlot> = None,
         flags: rustix::fs::OFlags = rustix::fs::OFlags::empty(),
-        mode: libc::mode_t = 0
+        mode: rustix::fs::Mode = rustix::fs::Mode::empty()
     }
 
     pub const CODE = sys::IoringOp::Openat;
@@ -759,7 +759,7 @@ opcode! {
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
         sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
-        sqe.len.len = mode;
+        sqe.len.len = mode.bits();
         sqe.op_flags.open_flags = flags;
         if let Some(dest) = file_index {
             sqe.splice_fd_in_or_file_index.file_index = dest.kernel_index_arg();
@@ -825,7 +825,7 @@ opcode! {
     /// Get file status, equivalent to `statx(2)`.
     pub struct Statx {
         dirfd: { impl sealed::UseFd },
-        pathname: { *const libc::c_char },
+        pathname: { *const sys::c_char },
         statxbuf: { *mut types::statx },
         ;;
         flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty(),
@@ -952,7 +952,7 @@ opcode! {
     /// Predeclare an access pattern for file data, equivalent to `posix_fadvise(2)`.
     pub struct Fadvise {
         fd: { impl sealed::UseFixed },
-        len: { libc::off_t },
+        len: { u32 },
         advice: { rustix::fs::Advice },
         ;;
         offset: u64 = 0,
@@ -966,7 +966,7 @@ opcode! {
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
         assign_fd!(sqe.fd = fd);
-        sqe.len.len = len as _;
+        sqe.len.len = len;
         sqe.off_or_addr2.off = offset as _;
         sqe.op_flags.fadvise_advice = advice;
         Entry(sqe)
@@ -976,8 +976,8 @@ opcode! {
 opcode! {
     /// Give advice about use of memory, equivalent to `madvise(2)`.
     pub struct Madvise {
-        addr: { *const libc::c_void },
-        len: { libc::off_t },
+        addr: { *const core::ffi::c_void },
+        len: { u32 },
         advice: { rustix::fs::Advice },
         ;;
     }
@@ -991,7 +991,7 @@ opcode! {
         sqe.opcode = Self::CODE;
         sqe.fd = -1;
         sqe.addr_or_splice_off_in.addr.ptr = addr as _;
-        sqe.len.len = len as _;
+        sqe.len.len = len;
         sqe.op_flags.fadvise_advice = advice as _;
         Entry(sqe)
     }
@@ -1101,7 +1101,7 @@ opcode! {
     /// Open a file, equivalent to `openat2(2)`.
     pub struct OpenAt2 {
         dirfd: { impl sealed::UseFd },
-        pathname: { *const libc::c_char },
+        pathname: { *const sys::c_char },
         how: { *const types::OpenHow }
         ;;
         file_index: Option<types::DestinationSlot> = None,
@@ -1310,9 +1310,9 @@ opcode! {
     // Available since kernel 5.11.
     pub struct RenameAt {
         olddirfd: { impl sealed::UseFd },
-        oldpath: { *const libc::c_char },
+        oldpath: { *const sys::c_char },
         newdirfd: { impl sealed::UseFd },
-        newpath: { *const libc::c_char },
+        newpath: { *const sys::c_char },
         ;;
         flags: rustix::fs::RenameFlags = rustix::fs::RenameFlags::empty()
     }
@@ -1342,7 +1342,7 @@ opcode! {
     // Available since kernel 5.11.
     pub struct UnlinkAt {
         dirfd: { impl sealed::UseFd },
-        pathname: { *const libc::c_char },
+        pathname: { *const sys::c_char },
         ;;
         flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty()
     }
@@ -1367,9 +1367,9 @@ opcode! {
     /// Make a directory, equivalent to `mkdirat(2)`.
     pub struct MkDirAt {
         dirfd: { impl sealed::UseFd },
-        pathname: { *const libc::c_char },
+        pathname: { *const sys::c_char },
         ;;
-        mode: libc::mode_t = 0
+        mode: rustix::fs::Mode = rustix::fs::Mode::empty()
     }
 
     pub const CODE = sys::IoringOp::Mkdirat;
@@ -1381,7 +1381,7 @@ opcode! {
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
         sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
-        sqe.len.len = mode;
+        sqe.len.len = mode.into();
         Entry(sqe)
     }
 }
@@ -1390,8 +1390,8 @@ opcode! {
     /// Create a symlink, equivalent to `symlinkat(2)`.
     pub struct SymlinkAt {
         newdirfd: { impl sealed::UseFd },
-        target: { *const libc::c_char },
-        linkpath: { *const libc::c_char },
+        target: { *const sys::c_char },
+        linkpath: { *const sys::c_char },
         ;;
     }
 
@@ -1413,9 +1413,9 @@ opcode! {
     /// Create a hard link, equivalent to `linkat(2)`.
     pub struct LinkAt {
         olddirfd: { impl sealed::UseFd },
-        oldpath: { *const libc::c_char },
+        oldpath: { *const sys::c_char },
         newdirfd: { impl sealed::UseFd },
-        newpath: { *const libc::c_char },
+        newpath: { *const sys::c_char },
         ;;
         flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty()
     }
@@ -1690,8 +1690,8 @@ opcode! {
         /// previously registered buffer. The buffer need not be aligned with the start of the
         /// registered buffer.
         buf_index: Option<u16> = None,
-        dest_addr: *const libc::sockaddr = core::ptr::null(),
-        dest_addr_len: libc::socklen_t = 0,
+        dest_addr: *const sys::sockaddr = core::ptr::null(),
+        dest_addr_len: sys::socklen_t = 0,
         flags: sys::SendFlags = sys::SendFlags::empty(),
         zc_flags: sys::IoringSendFlags = sys::IoringSendFlags::empty(),
     }
@@ -1728,7 +1728,7 @@ opcode! {
     #[derive(Debug)]
     pub struct SendMsgZc {
         fd: { impl sealed::UseFixed },
-        msg: { *const libc::msghdr },
+        msg: { *const sys::msghdr },
         ;;
         ioprio: u16 = 0,
         flags: sys::SendFlags = sys::SendFlags::empty()

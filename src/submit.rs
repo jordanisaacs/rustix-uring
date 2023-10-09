@@ -138,7 +138,7 @@ impl<'a> Submitter<'a> {
             }
         }
 
-        unsafe { self.enter::<libc::sigset_t>(len as _, want as _, flags, None) }
+        unsafe { self.enter::<sys::sigset_t>(len as _, want as _, flags, None) }
     }
 
     pub fn submit_with_args(
@@ -170,7 +170,7 @@ impl<'a> Submitter<'a> {
 
     /// Wait for the submission queue to have free entries.
     pub fn squeue_wait(&self) -> io::Result<usize> {
-        unsafe { self.enter::<libc::sigset_t>(0, 0, sys::IoringEnterFlags::SQ_WAIT, None) }
+        unsafe { self.enter::<sys::sigset_t>(0, 0, sys::IoringEnterFlags::SQ_WAIT, None) }
     }
 
     /// Register in-memory fixed buffers for I/O with the kernel. You can use these buffers with the
@@ -182,7 +182,7 @@ impl<'a> Submitter<'a> {
     /// Developers must ensure that the `iov_base` and `iov_len` values are valid and will
     /// be valid until buffers are unregistered or the ring destroyed, otherwise undefined
     /// behaviour may occur.
-    pub unsafe fn register_buffers(&self, bufs: &[libc::iovec]) -> io::Result<()> {
+    pub unsafe fn register_buffers(&self, bufs: &[sys::iovec]) -> io::Result<()> {
         execute(
             self.fd,
             sys::IoringRegisterOp::RegisterBuffers,

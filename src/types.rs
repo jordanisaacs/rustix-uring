@@ -258,9 +258,9 @@ impl<'prev, 'now> SubmitArgs<'prev, 'now> {
     }
 
     #[inline]
-    pub fn sigmask<'new>(mut self, sigmask: &'new libc::sigset_t) -> SubmitArgs<'now, 'new> {
+    pub fn sigmask<'new>(mut self, sigmask: &'new sys::sigset_t) -> SubmitArgs<'now, 'new> {
         self.args.sigmask = cast_ptr(sigmask) as _;
-        self.args.sigmask_sz = core::mem::size_of::<libc::sigset_t>() as _;
+        self.args.sigmask_sz = core::mem::size_of::<sys::sigset_t>() as _;
 
         SubmitArgs {
             args: self.args,
@@ -404,7 +404,7 @@ impl<'buf> RecvMsgOut<'buf> {
     /// (only `msg_namelen` and `msg_controllen` fields are relevant).
     #[allow(clippy::result_unit_err)]
     #[allow(clippy::useless_conversion)]
-    pub fn parse(buffer: &'buf [u8], msghdr: &libc::msghdr) -> Result<Self, ()> {
+    pub fn parse(buffer: &'buf [u8], msghdr: &sys::msghdr) -> Result<Self, ()> {
         let msghdr_name_len = usize::try_from(msghdr.msg_namelen).unwrap();
         let msghdr_control_len = usize::try_from(msghdr.msg_controllen).unwrap();
 
