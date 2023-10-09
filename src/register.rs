@@ -10,8 +10,8 @@ use crate::sys;
 pub(crate) fn execute<Fd: AsFd>(
     fd: Fd,
     opcode: sys::IoringRegisterOp,
-    arg: *const libc::c_void,
-    len: libc::c_uint,
+    arg: *const core::ffi::c_void,
+    len: u32,
 ) -> io::Result<()> {
     unsafe {
         sys::io_uring_register(fd.as_fd(), opcode, arg, len)?;

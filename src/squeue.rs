@@ -316,7 +316,7 @@ impl Entry {
     /// that will be passed straight through into the
     /// [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
-    pub fn user_data_ptr(mut self, user_data: *mut libc::c_void) -> Entry {
+    pub fn user_data_ptr(mut self, user_data: *mut core::ffi::c_void) -> Entry {
         self.0.user_data = sys::io_uring_user_data::from_ptr(user_data);
         self
     }
@@ -329,7 +329,7 @@ impl Entry {
 
     /// Get the previously application-supplied user data as a pointer.
     #[inline]
-    pub fn get_user_data_ptr(&self) -> *mut libc::c_void {
+    pub fn get_user_data_ptr(&self) -> *mut core::ffi::c_void {
         self.0.user_data.ptr()
     }
 
@@ -383,7 +383,7 @@ impl Entry128 {
     /// Set the user data. This is an application-supplied value that will be passed straight
     /// through into the [completion queue entry](crate::cqueue::Entry::user_data).
     #[inline]
-    pub fn user_data_ptr(mut self, user_data: *mut libc::c_void) -> Entry128 {
+    pub fn user_data_ptr(mut self, user_data: *mut core::ffi::c_void) -> Entry128 {
         self.0 .0.user_data = sys::io_uring_user_data::from_ptr(user_data);
         self
     }
