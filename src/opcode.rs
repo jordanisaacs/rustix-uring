@@ -748,8 +748,8 @@ opcode! {
         pathname: { *const sys::c_char },
         ;;
         file_index: Option<types::DestinationSlot> = None,
-        flags: rustix::fs::OFlags = rustix::fs::OFlags::empty(),
-        mode: rustix::fs::Mode = rustix::fs::Mode::empty()
+        flags: sys::OFlags = sys::OFlags::empty(),
+        mode: sys::Mode = sys::Mode::empty()
     }
 
     pub const CODE = sys::IoringOp::Openat;
@@ -828,10 +828,10 @@ opcode! {
     pub struct Statx {
         dirfd: { impl sealed::UseFd },
         pathname: { *const sys::c_char },
-        statxbuf: { *mut types::statx },
+        statxbuf: { *mut types::Statx },
         ;;
-        flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty(),
-        mask: u32 = 0
+        flags: sys::AtFlags = sys::AtFlags::empty(),
+        mask: sys::StatxFlags = sys::StatxFlags::empty()
     }
 
     pub const CODE = sys::IoringOp::Statx;
@@ -846,7 +846,7 @@ opcode! {
         sqe.opcode = Self::CODE;
         sqe.fd = dirfd;
         sqe.addr_or_splice_off_in.addr.ptr = pathname as _;
-        sqe.len.len = mask;
+        sqe.len.len = mask.bits();
         sqe.off_or_addr2.off = statxbuf as _;
         sqe.op_flags.statx_flags = flags;
         Entry(sqe)
@@ -955,7 +955,7 @@ opcode! {
     pub struct Fadvise {
         fd: { impl sealed::UseFixed },
         len: { u32 },
-        advice: { rustix::fs::Advice },
+        advice: { sys::Advice },
         ;;
         offset: u64 = 0,
     }
@@ -980,7 +980,7 @@ opcode! {
     pub struct Madvise {
         addr: { *const core::ffi::c_void },
         len: { u32 },
-        advice: { rustix::fs::Advice },
+        advice: { sys::Advice },
         ;;
     }
 
@@ -1124,7 +1124,7 @@ opcode! {
         epfd: { impl sealed::UseFixed },
         fd: { impl sealed::UseFd },
         op: { i32 },
-        ev: { *const types::epoll_event },
+        ev: { *const types::EpollEvent },
         ;;
     }
 
@@ -1307,7 +1307,7 @@ opcode! {
         newdirfd: { impl sealed::UseFd },
         newpath: { *const sys::c_char },
         ;;
-        flags: rustix::fs::RenameFlags = rustix::fs::RenameFlags::empty()
+        flags: sys::RenameFlags = sys::RenameFlags::empty()
     }
 
     pub const CODE = sys::IoringOp::Renameat;
@@ -1337,7 +1337,7 @@ opcode! {
         dirfd: { impl sealed::UseFd },
         pathname: { *const sys::c_char },
         ;;
-        flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty()
+        flags: sys::AtFlags = sys::AtFlags::empty()
     }
 
     pub const CODE = sys::IoringOp::Unlinkat;
@@ -1362,7 +1362,7 @@ opcode! {
         dirfd: { impl sealed::UseFd },
         pathname: { *const sys::c_char },
         ;;
-        mode: rustix::fs::Mode = rustix::fs::Mode::empty()
+        mode: sys::Mode = sys::Mode::empty()
     }
 
     pub const CODE = sys::IoringOp::Mkdirat;
@@ -1410,7 +1410,7 @@ opcode! {
         newdirfd: { impl sealed::UseFd },
         newpath: { *const sys::c_char },
         ;;
-        flags: rustix::fs::AtFlags = rustix::fs::AtFlags::empty()
+        flags: sys::AtFlags = sys::AtFlags::empty()
     }
 
     pub const CODE = sys::IoringOp::Linkat;
