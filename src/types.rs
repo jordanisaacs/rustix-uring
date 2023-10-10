@@ -178,7 +178,10 @@ pub struct Timespec(pub(crate) rustix::io_uring::Timespec);
 
 impl Default for Timespec {
     fn default() -> Self {
-        unsafe { core::mem::zeroed() }
+        Self(rustix::io_uring::Timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        })
     }
 }
 
