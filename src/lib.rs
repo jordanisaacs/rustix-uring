@@ -2,6 +2,7 @@
 //!
 //! The crate only provides a summary of the parameters.
 //! For more detailed documentation, see manpage.
+#![warn(unused_qualifications)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
