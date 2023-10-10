@@ -97,7 +97,7 @@ pub struct Restriction(sys::io_uring_restriction);
 /// inline zeroed to improve codegen
 #[inline(always)]
 fn res_zeroed() -> sys::io_uring_restriction {
-    unsafe { core::mem::zeroed() }
+    Default::default()
 }
 
 impl Restriction {
