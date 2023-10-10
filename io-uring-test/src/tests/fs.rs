@@ -173,7 +173,7 @@ pub fn test_file_openat2<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let path = dir.path().join("test-io-uring-openat2");
     let path = CString::new(path.as_os_str().as_bytes())?;
 
-    let openhow = types::OpenHow::new().flags(libc::O_CREAT as _);
+    let openhow = types::OpenHow::new().flags(types::OFlags::CREATE);
     let open_e = opcode::OpenAt2::new(dirfd, path.as_ptr(), &openhow);
 
     unsafe {
@@ -229,7 +229,7 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
         ));
         let path = CString::new(path.as_os_str().as_bytes())?;
 
-        let openhow = types::OpenHow::new().flags(libc::O_CREAT as _);
+        let openhow = types::OpenHow::new().flags(types::OFlags::CREATE);
 
         let file_index = types::DestinationSlot::auto_target();
 
@@ -287,7 +287,7 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
         ));
         let path = CString::new(path.as_os_str().as_bytes())?;
 
-        let openhow = types::OpenHow::new().flags(libc::O_CREAT as _);
+        let openhow = types::OpenHow::new().flags(types::OFlags::CREATE);
 
         let file_index = types::DestinationSlot::try_from_slot_target(round).unwrap();
 
@@ -592,14 +592,14 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let pathbuf = CString::new(path.as_os_str().as_bytes())?;
     fs::write(&path, "1")?;
 
-    let mut statxbuf: libc::statx = unsafe { std::mem::zeroed() };
+    let mut statxbuf: rustix::io_uring::Statx = unsafe { std::mem::zeroed() };
 
     let statx_e = opcode::Statx::new(
         types::Fd(libc::AT_FDCWD),
         pathbuf.as_ptr(),
-        &mut statxbuf as *mut libc::statx as *mut _,
+        &mut statxbuf as *mut _,
     )
-    .mask(libc::STATX_ALL)
+    .mask(types::StatxFlags::ALL)
     .build()
     .user_data(0x99)
     .into();
@@ -617,31 +617,27 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].result(), 0);
 
     // check
-    let mut statxbuf2 = unsafe { std::mem::zeroed() };
-    let ret = unsafe {
-        libc::statx(
-            libc::AT_FDCWD,
-            pathbuf.as_ptr(),
-            0,
-            libc::STATX_ALL,
-            &mut statxbuf2,
-        )
-    };
+    let statxbuf2 = rustix::fs::statx(
+        rustix::fs::CWD,
+        pathbuf,
+        rustix::fs::AtFlags::empty(),
+        rustix::fs::StatxFlags::ALL,
+    )
+    .unwrap();
 
-    assert_eq!(ret, 0);
-    assert_eq!(statxbuf, statxbuf2);
+    assert_same_statx(&statxbuf, &statxbuf2);
 
     // statx fd
     let fd = fs::File::open(&path)?;
-    let mut statxbuf3: libc::statx = unsafe { std::mem::zeroed() };
+    let mut statxbuf3: rustix::io_uring::Statx = unsafe { std::mem::zeroed() };
 
     let statx_e = opcode::Statx::new(
         types::Fd(fd.as_raw_fd()),
         b"\0".as_ptr().cast(),
-        &mut statxbuf3 as *mut libc::statx as *mut _,
+        &mut statxbuf3 as *mut rustix::io_uring::Statx as *mut _,
     )
-    .flags(rustix::fs::AtFlags::EMPTY_PATH)
-    .mask(libc::STATX_ALL)
+    .flags(types::AtFlags::EMPTY_PATH)
+    .mask(types::StatxFlags::ALL)
     .build()
     .user_data(0x9a)
     .into();
@@ -658,9 +654,86 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data(), 0x9a);
     assert_eq!(cqes[0].result(), 0);
 
-    assert_eq!(statxbuf3, statxbuf2);
+    assert_same_statx(&statxbuf3, &statxbuf2);
 
     Ok(())
+}
+
+fn assert_same_statx(statxbuf: &types::Statx, statxbuf2: &types::Statx) {
+    let types::Statx {
+        stx_mask: buf_mask,
+        stx_blksize: buf_blksize,
+        stx_attributes: buf_attributes,
+        stx_nlink: buf_nlink,
+        stx_uid: buf_uid,
+        stx_gid: buf_gid,
+        stx_mode: buf_mode,
+        stx_ino: buf_ino,
+        stx_size: buf_size,
+        stx_blocks: buf_blocks,
+        stx_attributes_mask: buf_attributes_mask,
+        stx_btime: buf_btime,
+        stx_ctime: buf_ctime,
+        stx_mtime: buf_mtime,
+        stx_rdev_major: buf_rdev_major,
+        stx_rdev_minor: buf_rdev_minor,
+        stx_dev_major: buf_dev_major,
+        stx_dev_minor: buf_dev_minor,
+        stx_mnt_id: buf_mnt_id,
+        stx_dio_mem_align: buf_dio_mem_align,
+        stx_dio_offset_align: buf_dio_offset_align,
+        ..
+    } = statxbuf;
+
+    let types::Statx {
+        stx_mask: buf2_mask,
+        stx_blksize: buf2_blksize,
+        stx_attributes: buf2_attributes,
+        stx_nlink: buf2_nlink,
+        stx_uid: buf2_uid,
+        stx_gid: buf2_gid,
+        stx_mode: buf2_mode,
+        stx_ino: buf2_ino,
+        stx_size: buf2_size,
+        stx_blocks: buf2_blocks,
+        stx_attributes_mask: buf2_attributes_mask,
+        stx_btime: buf2_btime,
+        stx_ctime: buf2_ctime,
+        stx_mtime: buf2_mtime,
+        stx_rdev_major: buf2_rdev_major,
+        stx_rdev_minor: buf2_rdev_minor,
+        stx_dev_major: buf2_dev_major,
+        stx_dev_minor: buf2_dev_minor,
+        stx_mnt_id: buf2_mnt_id,
+        stx_dio_mem_align: buf2_dio_mem_align,
+        stx_dio_offset_align: buf2_dio_offset_align,
+        ..
+    } = statxbuf2;
+
+    assert_eq!(buf_mask, buf2_mask);
+    assert_eq!(buf_blksize, buf2_blksize);
+    assert_eq!(buf_attributes, buf2_attributes);
+    assert_eq!(buf_nlink, buf2_nlink);
+    assert_eq!(buf_uid, buf2_uid);
+    assert_eq!(buf_gid, buf2_gid);
+    assert_eq!(buf_mode, buf2_mode);
+    assert_eq!(buf_ino, buf2_ino);
+    assert_eq!(buf_size, buf2_size);
+    assert_eq!(buf_blocks, buf2_blocks);
+    assert_eq!(buf_attributes_mask, buf2_attributes_mask);
+    assert_eq!(buf_btime.tv_sec, buf2_btime.tv_sec);
+    assert_eq!(buf_btime.tv_nsec, buf2_btime.tv_nsec);
+    assert_eq!(buf_ctime.tv_sec, buf2_ctime.tv_sec);
+    assert_eq!(buf_ctime.tv_nsec, buf2_ctime.tv_nsec);
+    assert_eq!(buf_mtime.tv_sec, buf2_mtime.tv_sec);
+    assert_eq!(buf_mtime.tv_nsec, buf2_mtime.tv_nsec);
+    assert_eq!(buf_rdev_major, buf2_rdev_major);
+    assert_eq!(buf_rdev_minor, buf2_rdev_minor);
+    assert_eq!(buf_dev_major, buf2_dev_major);
+    assert_eq!(buf_dev_minor, buf2_dev_minor);
+    assert_eq!(buf_mnt_id, buf2_mnt_id);
+    assert_eq!(buf_dio_mem_align, buf2_dio_mem_align);
+    assert_eq!(buf_dio_offset_align, buf2_dio_offset_align);
 }
 
 pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
