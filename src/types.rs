@@ -48,21 +48,11 @@ use core::marker::PhantomData;
 use core::num::NonZeroU32;
 use rustix::fd::RawFd;
 
-pub use rustix::io::ReadWriteFlags as RwFlags;
-
-/// Opaque types, you should use [`statx`](struct@libc::statx) instead.
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct statx {
-    _priv: (),
-}
-
-/// Opaque types, you should use [`epoll_event`](libc::epoll_event) instead.
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct epoll_event {
-    _priv: (),
-}
+pub use sys::ReadWriteFlags as RwFlags;
+pub use sys::{
+    iovec, msghdr, sockaddr, socklen_t, Advice, AtFlags, EpollEvent, Mode, OFlags, RenameFlags,
+    ResolveFlags, Statx, StatxFlags,
+};
 
 /// A file descriptor that has not been registered with io_uring.
 #[derive(Debug, Clone, Copy)]
@@ -153,21 +143,21 @@ impl OpenHow {
         OpenHow(sys::open_how {
             flags: 0,
             mode: 0,
-            resolve: rustix::fs::ResolveFlags::empty(),
+            resolve: sys::ResolveFlags::empty(),
         })
     }
 
-    pub const fn flags(mut self, flags: u64) -> Self {
-        self.0.flags = flags;
+    pub const fn flags(mut self, flags: OFlags) -> Self {
+        self.0.flags = flags.bits() as _;
         self
     }
 
-    pub const fn mode(mut self, mode: u64) -> Self {
-        self.0.mode = mode;
+    pub const fn mode(mut self, mode: Mode) -> Self {
+        self.0.mode = mode.bits() as _;
         self
     }
 
-    pub const fn resolve(mut self, resolve: rustix::fs::ResolveFlags) -> Self {
+    pub const fn resolve(mut self, resolve: ResolveFlags) -> Self {
         self.0.resolve = resolve;
         self
     }
@@ -175,11 +165,11 @@ impl OpenHow {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct Timespec(pub(crate) rustix::io_uring::Timespec);
+pub struct Timespec(pub(crate) sys::Timespec);
 
 impl Default for Timespec {
     fn default() -> Self {
-        Self(rustix::io_uring::Timespec {
+        Self(sys::Timespec {
             tv_sec: 0,
             tv_nsec: 0,
         })
@@ -189,7 +179,7 @@ impl Default for Timespec {
 impl Timespec {
     #[inline]
     pub const fn new() -> Self {
-        Timespec(rustix::io_uring::Timespec {
+        Timespec(sys::Timespec {
             tv_sec: 0,
             tv_nsec: 0,
         })
@@ -407,7 +397,7 @@ impl<'buf> RecvMsgOut<'buf> {
     /// (only `msg_namelen` and `msg_controllen` fields are relevant).
     #[allow(clippy::result_unit_err)]
     #[allow(clippy::useless_conversion)]
-    pub fn parse(buffer: &'buf [u8], msghdr: &sys::msghdr) -> Result<Self, ()> {
+    pub fn parse(buffer: &'buf [u8], msghdr: &msghdr) -> Result<Self, ()> {
         let msghdr_name_len = usize::try_from(msghdr.msg_namelen).unwrap();
         let msghdr_control_len = usize::try_from(msghdr.msg_controllen).unwrap();
 

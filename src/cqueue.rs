@@ -8,6 +8,8 @@ use core::sync::atomic;
 use crate::sys;
 use crate::util::{private, unsync_load, Mmap};
 
+use bitflags::bitflags;
+
 pub(crate) struct Inner<E: EntryMarker> {
     head: *const atomic::AtomicU32,
     tail: *const atomic::AtomicU32,
@@ -48,6 +50,20 @@ pub struct Entry32(pub(crate) Entry, pub(crate) [u64; 2]);
 fn test_entry_sizes() {
     assert_eq!(mem::size_of::<Entry>(), 16);
     assert_eq!(mem::size_of::<Entry32>(), 32);
+}
+
+bitflags! {
+    /// Completion flags
+    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+    pub struct Flags: u32 {
+        const BUFFER = sys::IoringCqeFlags::BUFFER.bits();
+
+        const MORE = sys::IoringCqeFlags::MORE.bits();
+
+        const SOCK_NONEMPTY = sys::IoringCqeFlags::SOCK_NONEMPTY.bits();
+
+        const NOTIF = sys::IoringCqeFlags::NOTIF.bits();
+    }
 }
 
 impl<E: EntryMarker> Inner<E> {
@@ -220,8 +236,8 @@ impl Entry {
     /// - Storing the selected buffer ID, if one was selected. See
     ///   [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
     #[inline]
-    pub fn flags(&self) -> sys::IoringCqeFlags {
-        self.0.flags
+    pub fn flags(&self) -> Flags {
+        Flags::from_bits_retain(self.0.flags.bits())
     }
 }
 
@@ -276,8 +292,8 @@ impl Entry32 {
     /// - Storing the selected buffer ID, if one was selected. See
     ///   [`BUFFER_SELECT`](crate::squeue::Flags::BUFFER_SELECT) for more info.
     #[inline]
-    pub fn flags(&self) -> sys::IoringCqeFlags {
-        self.0 .0.flags
+    pub fn flags(&self) -> Flags {
+        Flags::from_bits_retain(self.0 .0.flags.bits())
     }
 
     /// Additional data available in 32-byte completion queue entries (CQEs).
@@ -315,8 +331,8 @@ impl Debug for Entry32 {
 /// This corresponds to the `IORING_CQE_F_BUFFER` flag (and related bit-shifting),
 /// and it signals to the consumer which provided contains the result of this
 /// operation.
-pub fn buffer_select(flags: sys::IoringCqeFlags) -> Option<u16> {
-    if flags.contains(sys::IoringCqeFlags::BUFFER) {
+pub fn buffer_select(flags: Flags) -> Option<u16> {
+    if flags.contains(Flags::BUFFER) {
         let id = flags.bits() >> sys::IORING_CQE_BUFFER_SHIFT;
 
         // FIXME
@@ -334,8 +350,8 @@ pub fn buffer_select(flags: sys::IoringCqeFlags) -> Option<u16> {
 /// This corresponds to the `IORING_CQE_F_MORE` flag, and it signals to
 /// the consumer that it should expect further CQE entries after this one,
 /// still from the same original SQE request (e.g. for multishot operations).
-pub fn more(flags: sys::IoringCqeFlags) -> bool {
-    flags.contains(sys::IoringCqeFlags::MORE)
+pub fn more(flags: Flags) -> bool {
+    flags.contains(Flags::MORE)
 }
 
 /// Return whether socket has more data ready to read.
@@ -345,8 +361,8 @@ pub fn more(flags: sys::IoringCqeFlags) -> bool {
 ///
 /// The io_uring documentation says recv, recv-multishot, recvmsg, and recvmsg-multishot
 /// can provide this bit in their respective CQE.
-pub fn sock_nonempty(flags: sys::IoringCqeFlags) -> bool {
-    flags.contains(sys::IoringCqeFlags::SOCK_NONEMPTY)
+pub fn sock_nonempty(flags: Flags) -> bool {
+    flags.contains(Flags::SOCK_NONEMPTY)
 }
 
 /// Returns whether this completion event is a notification.

@@ -274,7 +274,7 @@ pub fn test_tcp_zero_copy_send_fixed<S: squeue::EntryMarker, C: cqueue::EntryMar
     let _ = ring.submitter().unregister_buffers();
 
     let mut buf0 = vec![0; 1024];
-    let iovec = io_uring::sys::iovec {
+    let iovec = io_uring::types::iovec {
         iov_base: buf0.as_ptr() as _,
         iov_len: buf0.len() as _,
     };
@@ -363,7 +363,7 @@ pub fn test_tcp_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let mut bufs2 = [io::IoSliceMut::new(&mut buf2)];
 
     // build sendmsg
-    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::types::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
@@ -376,7 +376,7 @@ pub fn test_tcp_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let sendmsg_e = opcode::SendMsg::new(send_fd, msg.as_ptr());
 
     // build recvmsg
-    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::types::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
@@ -448,7 +448,7 @@ pub fn test_tcp_zero_copy_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::Ent
     let mut bufs2 = [io::IoSliceMut::new(&mut buf2)];
 
     // build sendmsg
-    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::types::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
@@ -461,7 +461,7 @@ pub fn test_tcp_zero_copy_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::Ent
     let sendmsg_e = opcode::SendMsgZc::new(send_fd, msg.as_ptr());
 
     // build recvmsg
-    let mut msg = MaybeUninit::<io_uring::sys::msghdr>::zeroed();
+    let mut msg = MaybeUninit::<io_uring::types::msghdr>::zeroed();
 
     unsafe {
         let p = msg.as_mut_ptr();
@@ -536,8 +536,8 @@ pub fn test_tcp_accept<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let _stream = TcpStream::connect(addr)?;
 
-    let mut sockaddr: io_uring::sys::sockaddr = unsafe { mem::zeroed() };
-    let mut addrlen: io_uring::sys::socklen_t = mem::size_of::<io_uring::sys::sockaddr>() as _;
+    let mut sockaddr: io_uring::types::sockaddr = unsafe { mem::zeroed() };
+    let mut addrlen: io_uring::types::socklen_t = mem::size_of::<io_uring::types::sockaddr>() as _;
 
     let accept_e = opcode::Accept::new(fd, &mut sockaddr, &mut addrlen);
 
@@ -588,8 +588,8 @@ pub fn test_tcp_accept_file_index<S: squeue::EntryMarker, C: cqueue::EntryMarker
 
     let _stream = TcpStream::connect(addr)?;
 
-    let mut sockaddr: io_uring::sys::sockaddr = unsafe { mem::zeroed() };
-    let mut addrlen: io_uring::sys::socklen_t = mem::size_of::<io_uring::sys::sockaddr>() as _;
+    let mut sockaddr: io_uring::types::sockaddr = unsafe { mem::zeroed() };
+    let mut addrlen: io_uring::types::socklen_t = mem::size_of::<io_uring::types::sockaddr>() as _;
 
     let dest_slot = types::DestinationSlot::try_from_slot_target(4).unwrap();
     let accept_e = opcode::Accept::new(fd, &mut sockaddr, &mut addrlen);
@@ -1024,8 +1024,8 @@ pub fn test_tcp_buffer_select_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMa
     send_stream.write_all(&[0x57u8; 1024])?;
 
     // recvmsg
-    let mut msg: io_uring::sys::msghdr = unsafe { std::mem::zeroed() };
-    let mut iovecs: [io_uring::sys::iovec; 1] = unsafe { std::mem::zeroed() };
+    let mut msg: io_uring::types::msghdr = unsafe { std::mem::zeroed() };
+    let mut iovecs: [io_uring::types::iovec; 1] = unsafe { std::mem::zeroed() };
     iovecs[0].iov_len = 1024; // This can be used to reduce the length of the read.
     msg.msg_iov = &mut iovecs as *mut _ as *mut _;
     msg.msg_iovlen = 1; // 2 results in EINVAL, Invalid argument, being returned in result.
@@ -1112,7 +1112,7 @@ pub fn test_tcp_buffer_select_readv<S: squeue::EntryMarker, C: cqueue::EntryMark
     // send for readv
     send_stream.write_all(&[0x7bu8; 512])?;
 
-    let iovec = io_uring::sys::iovec {
+    let iovec = io_uring::types::iovec {
         iov_base: std::ptr::null_mut(),
         iov_len: 512, // Bug in earlier kernels requires this length to be the buffer pool
                       // length. By 6.1, this could be passed in as zero.
@@ -1499,7 +1499,7 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data(), 42);
     assert!(cqes[0].result() >= 0);
     assert!(cqes[0].result() != plain_fd);
-    assert_eq!(cqes[0].flags(), Default::default());
+    assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
 
     // Close both sockets, to avoid leaking FDs.
     let io_uring_socket = unsafe { Socket::from_raw_fd(cqes[0].result()) };
@@ -1533,7 +1533,7 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data(), 55);
     assert_eq!(cqes[0].result(), 0);
-    assert_eq!(cqes[0].flags(), Default::default());
+    assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
 
     // If the fixed-socket operation worked properly, this must not fail.
     ring.submitter().unregister_files().unwrap();
@@ -1582,12 +1582,12 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), Default::default());
+        assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
     }
 
     // This structure is actually only used for input arguments to the kernel
     // (and only name length and control length are actually relevant).
-    let mut msghdr: io_uring::sys::msghdr = unsafe { std::mem::zeroed() };
+    let mut msghdr: io_uring::types::msghdr = unsafe { std::mem::zeroed() };
     msghdr.msg_namelen = 32;
     msghdr.msg_controllen = 0;
 
@@ -1612,7 +1612,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     let bufs1 = [io::IoSlice::new(b"testfooo for me")];
     let bufs2 = [io::IoSlice::new(b"testbarbar for you and me")];
 
-    let mut msghdr1: io_uring::sys::msghdr = unsafe { mem::zeroed() };
+    let mut msghdr1: io_uring::types::msghdr = unsafe { mem::zeroed() };
     msghdr1.msg_name = server_addr.as_ptr() as *const _ as *mut _;
     msghdr1.msg_namelen = server_addr.len() as _;
     msghdr1.msg_iov = bufs1.as_ptr() as *const _ as *mut _;
@@ -1626,7 +1626,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     unsafe { ring.submission().push(&send_msg_1)? };
     ring.submitter().submit().unwrap();
 
-    let mut msghdr2: io_uring::sys::msghdr = unsafe { mem::zeroed() };
+    let mut msghdr2: io_uring::types::msghdr = unsafe { mem::zeroed() };
     msghdr2.msg_name = server_addr.as_ptr() as *const _ as *mut _;
     msghdr2.msg_namelen = server_addr.len() as _;
     msghdr2.msg_iov = bufs2.as_ptr() as *const _ as *mut _;
@@ -1945,7 +1945,7 @@ pub fn test_udp_sendzc_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data(), 11);
         assert_eq!(cqes[0].result(), 0);
-        assert_eq!(cqes[0].flags(), Default::default());
+        assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
     }
 
     let recvmsg_e = opcode::RecvMulti::new(Fd(server_socket.as_raw_fd()), BUF_GROUP)

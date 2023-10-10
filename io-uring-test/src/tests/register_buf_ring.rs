@@ -260,7 +260,7 @@ impl InnerBufRing {
         &self,
         buf_ring: FixedSizeBufRing,
         res: u32,
-        flags: io_uring::sys::IoringCqeFlags,
+        flags: io_uring::cqueue::Flags,
     ) -> io::Result<GBuf> {
         // This fn does the odd thing of having self as the BufRing and taking an argument that is
         // the same BufRing but wrapped in Rc<_> so the wrapped buf_ring can be passed to the

@@ -12,7 +12,7 @@ pub mod opcode;
 pub mod register;
 pub mod squeue;
 mod submit;
-pub use rustix::io_uring as sys;
+use rustix::io_uring as sys;
 pub mod types;
 pub use rustix::io::{Errno, Result};
 
