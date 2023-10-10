@@ -46,7 +46,6 @@ where
     memory: ManuallyDrop<MemoryMap>,
 }
 
-#[allow(dead_code)]
 struct MemoryMap {
     sq_mmap: Mmap,
     sqe_mmap: Mmap,
