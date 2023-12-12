@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "rustix-uring"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bitflags 2.4.1",
