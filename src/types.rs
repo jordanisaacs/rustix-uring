@@ -194,9 +194,8 @@ impl Timespec {
     }
 }
 
-#[cfg(feature = "std")]
-impl From<std::time::Duration> for Timespec {
-    fn from(value: std::time::Duration) -> Self {
+impl From<core::time::Duration> for Timespec {
+    fn from(value: core::time::Duration) -> Self {
         Timespec::new()
             .sec(value.as_secs())
             .nsec(value.subsec_nanos())
@@ -680,7 +679,7 @@ impl FutexWaitV {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use core::time::Duration;
 
     use crate::types::sealed::Target;
 

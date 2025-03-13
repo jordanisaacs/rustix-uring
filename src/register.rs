@@ -144,7 +144,7 @@ pub const SKIP_FILE: BorrowedFd<'static> = rustix::io_uring::IORING_REGISTER_FIL
 
 #[test]
 fn test_probe_layout() {
-    use std::alloc::Layout;
+    use core::alloc::Layout;
 
     let probe = Probe::new();
     assert_eq!(

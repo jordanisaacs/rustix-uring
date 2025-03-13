@@ -42,7 +42,7 @@ jobs:
       matrix:
         toolchain:
           - stable
-          - "1.63"
+          - "1.81"
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
@@ -68,7 +68,7 @@ jobs:
       matrix:
         toolchain:
           - stable
-          - "1.63"
+          - "1.81"
         target:
           - i686-unknown-linux-gnu
 

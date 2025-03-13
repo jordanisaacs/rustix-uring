@@ -1,6 +1,6 @@
 [package]
 name = "rustix-uring"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Jordan Isaacs <mail@jdisaacs.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -9,17 +9,13 @@ homepage = "https://github.com/jordanisaacs/rustix-uring"
 documentation = "https://docs.rs/rustix-uring"
 description = "The low-level `io_uring` userspace interface for Rust"
 categories = [ "asynchronous", "network-programming", "filesystem" ]
-rust-version = "1.63"
+rust-version = "1.81"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
 exclude = ["/flake.*", ".envrc"]
 members = [ "io-uring-test", "io-uring-bench" ]
-
-[features]
-default = ["std"]
-std = ["rustix/std", "bitflags/std"]
 
 [dependencies]
 bitflags = { version = "2.4.0", default-features = false }
@@ -28,5 +24,6 @@ rustix = { version = "1.0.2", default-features = false, features = ["io_uring", 
 [dev-dependencies]
 libc = "0.2.98"
 anyhow = "1"
+rustix = "1.0.2"
 socket2 = "0.5"
 slab = "0.4"
