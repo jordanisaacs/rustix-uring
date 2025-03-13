@@ -20,7 +20,7 @@ To use `io-uring` crate, first add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rustix-uring = "0.1"
+rustix-uring = "0.4"
 ```
 
 Next we can start using `io-uring` crate.
