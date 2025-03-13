@@ -249,7 +249,6 @@ impl<'prev, 'now> SubmitArgs<'prev, 'now> {
     pub fn sigmask<'new>(mut self, sigmask: &'new sys::KernelSigSet) -> SubmitArgs<'now, 'new> {
         self.args.sigmask = sys::io_uring_ptr::new(cast_ptr(sigmask) as _);
         self.args.sigmask_sz = core::mem::size_of::<sys::KernelSigSet>() as _;
-        assert!(false);
 
         SubmitArgs {
             args: self.args,
