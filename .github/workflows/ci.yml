@@ -106,9 +106,6 @@ jobs:
           components: clippy
           override: true
       - name: Lint
-        env:
-          RUSTFLAGS: --cfg=io_uring_use_own_sys
-          IO_URING_OWN_SYS_BINDING: sys_x86-64.rs
         run: cargo check --target ${{ matrix.target }}
 
   fmt:
