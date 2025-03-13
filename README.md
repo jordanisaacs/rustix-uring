@@ -16,14 +16,14 @@ system calls.
 
 ## Usage
 
-To use `io-uring` crate, first add this to your `Cargo.toml`:
+To use the `rustix-uring` crate, first add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 rustix-uring = "0.4"
 ```
 
-Next we can start using `io-uring` crate.
+Next we can start using the `rustix-uring` crate.
 The following is quick introduction using `Read` for file.
 
 ```rust
