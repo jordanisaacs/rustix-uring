@@ -9,7 +9,7 @@ homepage = "https://github.com/jordanisaacs/rustix-uring"
 documentation = "https://docs.rs/rustix-uring"
 description = "The low-level `io_uring` userspace interface for Rust"
 categories = [ "asynchronous", "network-programming", "filesystem" ]
-rust-version = "1.63"
+rust-version = "1.81"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
