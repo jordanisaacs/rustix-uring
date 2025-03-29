@@ -330,7 +330,7 @@ opcode! {
         /// The bits that may be set in `flags` are defined in `<poll.h>`,
         /// and documented in `poll(2)`.
         fd: { impl sealed::UseFixed },
-        flags: { u32 },
+        flags: { rustix::event::epoll::EventFlags },
         ;;
         multi: bool = false
     }
@@ -348,10 +348,11 @@ opcode! {
         }
 
         #[cfg(target_endian = "little")] {
-            sqe.op_flags.poll32_events = flags;
+            sqe.op_flags.poll32_events = flags.bits();
         }
 
         #[cfg(target_endian = "big")] {
+            let flags = flags.bits();
             let x = flags << 16;
             let y = flags >> 16;
             let flags = x | y;
