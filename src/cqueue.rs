@@ -232,6 +232,13 @@ impl Entry {
         }
     }
 
+    /// The operation-specific result code. For example, for a [`Read`](crate::opcode::Read)
+    /// operation this is equivalent to the return value of the `read(2)` system call.
+    #[inline]
+    pub fn raw_result(&self) -> i32 {
+        self.0.res
+    }
+
     /// The user data of the request, as set by
     /// [`Entry::user_data`](crate::squeue::Entry::user_data) on the submission queue event.
     #[inline]
