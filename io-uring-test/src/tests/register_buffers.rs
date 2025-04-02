@@ -4,7 +4,7 @@ use io_uring::{
     opcode::{ReadFixed, WriteFixed},
     squeue,
     types::{iovec, Fd},
-    IoUring,
+    Errno, IoUring,
 };
 use std::{
     fs::File,
@@ -16,7 +16,6 @@ use std::{
 };
 
 use io_uring::{opcode, types};
-use libc::EFAULT;
 
 pub fn test_register_buffers<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
@@ -140,7 +139,7 @@ fn _test_register_buffers<
         assert!(ce.user_data().u64_() < BUFFERS as u64);
         assert_eq!(
             ce.result(),
-            BUF_SIZE as i32,
+            Ok(BUF_SIZE as i32),
             "WriteFixed operation {} failed",
             index
         );
@@ -178,7 +177,7 @@ fn _test_register_buffers<
         assert!(ce.user_data().u64_() < BUFFERS as u64);
         assert_eq!(
             ce.result(),
-            BUF_SIZE as i32,
+            Ok(BUF_SIZE as i32),
             "ReadFixed operation {} failed",
             index
         );
@@ -261,8 +260,11 @@ pub fn test_register_buffers_update<S: squeue::EntryMarker, C: cqueue::EntryMark
     }
 
     // EFAULT is to be expected with incorrect fixed buffers
-    if cqe.result() != -EFAULT {
-        return Err(anyhow::anyhow!("unexpected read result: {}", cqe.result()));
+    if cqe.result() != Err(Errno::FAULT) {
+        return Err(anyhow::anyhow!(
+            "unexpected read result: {:?}",
+            cqe.result()
+        ));
     }
 
     // Register a buffer at the index 5
@@ -315,8 +317,11 @@ pub fn test_register_buffers_update<S: squeue::EntryMarker, C: cqueue::EntryMark
     }
 
     // We should read exactly two bytes
-    if cqe.result() != 2 {
-        return Err(anyhow::anyhow!("unexpected read result: {}", cqe.result()));
+    if cqe.result() != Ok(2) {
+        return Err(anyhow::anyhow!(
+            "unexpected read result: {:?}",
+            cqe.result()
+        ));
     }
 
     // The first two bytes of `buf` should be "yo"
