@@ -139,7 +139,7 @@ fn _test_register_buffers<
         assert!(ce.user_data().u64_() < BUFFERS as u64);
         assert_eq!(
             ce.result(),
-            Ok(BUF_SIZE as i32),
+            Ok(BUF_SIZE as u32),
             "WriteFixed operation {} failed",
             index
         );
@@ -177,7 +177,7 @@ fn _test_register_buffers<
         assert!(ce.user_data().u64_() < BUFFERS as u64);
         assert_eq!(
             ce.result(),
-            Ok(BUF_SIZE as i32),
+            Ok(BUF_SIZE as u32),
             "ReadFixed operation {} failed",
             index
         );

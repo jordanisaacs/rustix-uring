@@ -192,7 +192,7 @@ pub fn test_msg_ring_data<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let dest_cqes: Vec<cqueue::Entry> = dest_ring.completion().map(Into::into).collect();
     assert_eq!(dest_cqes.len(), 1);
     assert_eq!(dest_cqes[0].user_data().u64_(), user_data);
-    assert_eq!(dest_cqes[0].result(), Ok(result));
+    assert_eq!(dest_cqes[0].result(), Ok(result as u32));
     assert_eq!(dest_cqes[0].flags().bits(), 0);
 
     Ok(())

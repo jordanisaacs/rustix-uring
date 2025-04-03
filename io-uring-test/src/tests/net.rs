@@ -112,8 +112,8 @@ pub fn test_tcp_send_recv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert_eq!(cqes[1].user_data().u64_(), 0x02);
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
-    assert_eq!(cqes[1].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
+    assert_eq!(cqes[1].result(), Ok(text.len() as u32));
 
     assert_eq!(&output[..cqes[1].result().unwrap() as usize], text);
 
@@ -174,7 +174,7 @@ pub fn test_tcp_send_bundle<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
 
     assert_eq!(
         recv_stream
@@ -232,18 +232,18 @@ pub fn test_tcp_zero_copy_send_recv<S: squeue::EntryMarker, C: cqueue::EntryMark
     // Send completion is ordered w.r.t recv
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert!(io_uring::cqueue::more(cqes[0].flags()));
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
 
     // Notification is not ordered w.r.t recv
     match (cqes[1].user_data().u64_(), cqes[2].user_data().u64_()) {
         (0x01, 0x02) => {
             assert!(!io_uring::cqueue::more(cqes[1].flags()));
-            assert_eq!(cqes[2].result(), Ok(text.len() as i32));
+            assert_eq!(cqes[2].result(), Ok(text.len() as u32));
             assert_eq!(&output[..cqes[2].result().unwrap() as usize], text);
         }
         (0x02, 0x01) => {
             assert!(!io_uring::cqueue::more(cqes[2].flags()));
-            assert_eq!(cqes[1].result(), Ok(text.len() as i32));
+            assert_eq!(cqes[1].result(), Ok(text.len() as u32));
             assert_eq!(&output[..cqes[1].result().unwrap() as usize], text);
         }
         _ => unreachable!(),
@@ -315,18 +315,18 @@ pub fn test_tcp_zero_copy_send_fixed<S: squeue::EntryMarker, C: cqueue::EntryMar
     // Send completion is ordered w.r.t recv
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert!(io_uring::cqueue::more(cqes[0].flags()));
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
 
     // Notification is not ordered w.r.t recv
     match (cqes[1].user_data().u64_(), cqes[2].user_data().u64_()) {
         (0x01, 0x02) => {
             assert!(!io_uring::cqueue::more(cqes[1].flags()));
-            assert_eq!(cqes[2].result(), Ok(text.len() as i32));
+            assert_eq!(cqes[2].result(), Ok(text.len() as u32));
             assert_eq!(&output[..cqes[2].result().unwrap() as usize], text);
         }
         (0x02, 0x01) => {
             assert!(!io_uring::cqueue::more(cqes[2].flags()));
-            assert_eq!(cqes[1].result(), Ok(text.len() as i32));
+            assert_eq!(cqes[1].result(), Ok(text.len() as u32));
             assert_eq!(&output[..cqes[1].result().unwrap() as usize], text);
         }
         _ => unreachable!(),
@@ -414,8 +414,8 @@ pub fn test_tcp_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert_eq!(cqes[1].user_data().u64_(), 0x02);
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
-    assert_eq!(cqes[1].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
+    assert_eq!(cqes[1].result(), Ok(text.len() as u32));
 
     assert_eq!(buf2, text);
 
@@ -501,18 +501,18 @@ pub fn test_tcp_zero_copy_sendmsg_recvmsg<S: squeue::EntryMarker, C: cqueue::Ent
     // Send completion is ordered w.r.t recv
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert!(io_uring::cqueue::more(cqes[0].flags()));
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
 
     // Notification is not ordered w.r.t recv
     match (cqes[1].user_data().u64_(), cqes[2].user_data().u64_()) {
         (0x01, 0x02) => {
             assert!(!io_uring::cqueue::more(cqes[1].flags()));
-            assert_eq!(cqes[2].result(), Ok(text.len() as i32));
+            assert_eq!(cqes[2].result(), Ok(text.len() as u32));
             assert_eq!(&buf2[..cqes[2].result().unwrap() as usize], text);
         }
         (0x02, 0x01) => {
             assert!(!io_uring::cqueue::more(cqes[2].flags()));
-            assert_eq!(cqes[1].result(), Ok(text.len() as i32));
+            assert_eq!(cqes[1].result(), Ok(text.len() as u32));
             assert_eq!(&buf2[..cqes[1].result().unwrap() as usize], text);
         }
         _ => unreachable!(),
@@ -556,7 +556,7 @@ pub fn test_tcp_accept<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x0e);
 
-    let fd = cqes[0].result().unwrap();
+    let fd = cqes[0].result().unwrap() as i32;
 
     unsafe {
         libc::close(fd);
@@ -660,7 +660,7 @@ pub fn test_tcp_accept_multi<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     for cqe in cqes {
         assert_eq!(cqe.user_data().u64_(), 2002);
 
-        let fd = cqe.result().unwrap();
+        let fd = cqe.result().unwrap() as i32;
 
         unsafe {
             libc::close(fd);
@@ -1498,11 +1498,11 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 42);
-    assert!(cqes[0].result().unwrap() != plain_fd);
+    assert!(cqes[0].result().unwrap() as i32 != plain_fd);
     assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
 
     // Close both sockets, to avoid leaking FDs.
-    let io_uring_socket = unsafe { Socket::from_raw_fd(cqes[0].result().unwrap()) };
+    let io_uring_socket = unsafe { Socket::from_raw_fd(cqes[0].result().unwrap() as i32) };
     drop(plain_socket);
     drop(io_uring_socket);
 
@@ -1881,7 +1881,7 @@ pub fn test_udp_send_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             1 => {
                 // The receive, we should have received the test message here.
                 let n_received = cqe.result().unwrap();
-                assert_eq!(n_received, out_buf.len() as i32);
+                assert_eq!(n_received, out_buf.len() as u32);
                 assert_eq!(&in_buf[..n_received as usize], out_buf);
             }
             2 => {
@@ -1891,7 +1891,7 @@ pub fn test_udp_send_with_dest<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
             3 => {
                 // The send that should have succeeded.
                 let n_sent = cqe.result().unwrap();
-                assert_eq!(n_sent, out_buf.len() as i32);
+                assert_eq!(n_sent, out_buf.len() as u32);
             }
             _ => unreachable!("We only submit user data 1, 2, and 3."),
         }

@@ -116,7 +116,7 @@ fn main() -> anyhow::Result<()> {
 
                     accept.count += 1;
 
-                    let fd = ret;
+                    let fd = ret as i32;
                     let poll_token = token_alloc.insert(Token::Poll { fd });
 
                     let poll_e = opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)

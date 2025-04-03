@@ -191,7 +191,7 @@ pub fn test_file_openat2<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data().u64_(), 0x11);
     assert!(cqes[0].result().is_ok_and(|x| x > 0));
 
-    let fd = unsafe { fs::File::from_raw_fd(cqes[0].result().unwrap()) };
+    let fd = unsafe { fs::File::from_raw_fd(cqes[0].result().unwrap() as i32) };
 
     assert!(fd.metadata()?.is_file());
 
@@ -569,7 +569,7 @@ pub fn test_file_cur_pos<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[2].user_data().u64_(), 0x03);
     assert_eq!(cqes[0].result(), Ok(22));
     assert_eq!(cqes[1].result(), Ok(22));
-    assert_eq!(cqes[2].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[2].result(), Ok(text.len() as u32));
 
     assert_eq!(&output, text);
 
@@ -793,8 +793,8 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert_eq!(cqes[1].user_data().u64_(), 0x02);
-    assert_eq!(cqes[0].result(), Ok(input.0.len() as i32));
-    assert_eq!(cqes[1].result(), Ok(input.0.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(input.0.len() as u32));
+    assert_eq!(cqes[1].result(), Ok(input.0.len() as u32));
 
     assert_eq!(input.0[..], output.0[..]);
     assert_eq!(input.0[0], 0xf9);
@@ -1006,7 +1006,7 @@ pub fn test_fixed_fd_install<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data().u64_(), 0x02);
     let fd = cqes[0].result().unwrap();
     assert!(fd > 0);
-    let mut file = unsafe { fs::File::from_raw_fd(fd) };
+    let mut file = unsafe { fs::File::from_raw_fd(fd as i32) };
     file.read_exact(&mut output)?;
     assert_eq!(output, input);
 

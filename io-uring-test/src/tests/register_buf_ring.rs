@@ -568,7 +568,7 @@ where
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert_eq!(cqes[0].result(), Ok(text.len() as i32));
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
     Ok(())
 }
 
