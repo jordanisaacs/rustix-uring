@@ -3,6 +3,7 @@ use std::net::TcpListener;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::ptr;
 
+use rustix::event::epoll::EventFlags;
 use rustix_uring::{opcode, squeue, types, Errno, IoUring, SubmissionQueue};
 use slab::Slab;
 
@@ -119,7 +120,7 @@ fn main() -> anyhow::Result<()> {
                     let fd = ret as i32;
                     let poll_token = token_alloc.insert(Token::Poll { fd });
 
-                    let poll_e = opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)
+                    let poll_e = opcode::PollAdd::new(types::Fd(fd), EventFlags::IN)
                         .build()
                         .user_data(poll_token as u64);
 
@@ -197,7 +198,7 @@ fn main() -> anyhow::Result<()> {
 
                         *token = Token::Poll { fd };
 
-                        opcode::PollAdd::new(types::Fd(fd), libc::POLLIN as _)
+                        opcode::PollAdd::new(types::Fd(fd), EventFlags::IN)
                             .build()
                             .user_data(token_index as u64)
                     } else {
