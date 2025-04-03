@@ -215,7 +215,7 @@ impl Entry {
     /// equivalent to the return value of the `read(2)` system call.  If the operation failed, the
     /// errno is returned.
     #[inline]
-    pub fn result(&self) -> Result<i32, Errno> {
+    pub fn result(&self) -> Result<u32, Errno> {
         // The following text is found in many io_uring man pages:
         //
         // > Note that where synchronous system calls will return -1 on failure
@@ -225,10 +225,10 @@ impl Entry {
         // Furthermore, I believe a negative value in the `res` field is
         // _always_ a negated errno.  We return a `Result` instead for
         // convenience.
-        if self.0.res < 0 {
-            Err(Errno::from_raw_os_error(-self.0.res))
+        if let Ok(x) = u32::try_from(self.0.res) {
+            Ok(x)
         } else {
-            Ok(self.0.res)
+            Err(Errno::from_raw_os_error(-self.0.res))
         }
     }
 
