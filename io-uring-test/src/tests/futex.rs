@@ -73,7 +73,7 @@ pub fn test_futex_wait<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), USER_DATA);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     Ok(())
 }
@@ -125,7 +125,7 @@ pub fn test_futex_wake<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), USER_DATA);
-    assert_eq!(cqes[0].result(), 1);
+    assert_eq!(cqes[0].result(), Ok(1));
 
     wait_thread.join().unwrap();
 
@@ -177,7 +177,7 @@ pub fn test_futex_waitv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), USER_DATA);
-    assert_eq!(cqes[0].result(), TRIGGER_IDX as _);
+    assert_eq!(cqes[0].result(), Ok(TRIGGER_IDX as _));
 
     Ok(())
 }

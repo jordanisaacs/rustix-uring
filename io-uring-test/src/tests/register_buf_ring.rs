@@ -568,7 +568,7 @@ where
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert_eq!(cqes[0].result(), text.len() as i32);
+    assert_eq!(cqes[0].result(), Ok(text.len() as u32));
     Ok(())
 }
 
@@ -606,11 +606,8 @@ where
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x02);
 
-    let result = cqes[0].result();
-    if result < 0 {
-        // Expect ENOBUFS when the buf_ring is empty.
-        return Err(io::Error::from_raw_os_error(-result));
-    }
+    // Expect ENOBUFS when the buf_ring is empty.
+    let result = cqes[0].result()?;
 
     let result = result as u32;
     assert_eq!(result, len);

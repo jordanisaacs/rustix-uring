@@ -9,6 +9,7 @@ use crate::sys;
 use crate::util::{private, unsync_load, Mmap};
 
 use bitflags::bitflags;
+use rustix::io::Errno;
 
 pub(crate) struct Inner<E: EntryMarker> {
     head: *const atomic::AtomicU32,
@@ -209,10 +210,32 @@ impl<E: EntryMarker> ExactSizeIterator for CompletionQueue<'_, E> {
 }
 
 impl Entry {
+    /// The result of the operation.  If the operation succeeded, this is the operation-specific
+    /// return value.  For example, for a [`Read`](crate::opcode::Read) operation this is
+    /// equivalent to the return value of the `read(2)` system call.  If the operation failed, the
+    /// errno is returned.
+    #[inline]
+    pub fn result(&self) -> Result<u32, Errno> {
+        // The following text is found in many io_uring man pages:
+        //
+        // > Note that where synchronous system calls will return -1 on failure
+        // > and set errno to the actual error value, io_uring never uses errno.
+        // > Instead it returns the negated errno directly in the CQE res field.
+        //
+        // Furthermore, I believe a negative value in the `res` field is
+        // _always_ a negated errno.  We return a `Result` instead for
+        // convenience.
+        if let Ok(x) = u32::try_from(self.0.res) {
+            Ok(x)
+        } else {
+            Err(Errno::from_raw_os_error(-self.0.res))
+        }
+    }
+
     /// The operation-specific result code. For example, for a [`Read`](crate::opcode::Read)
     /// operation this is equivalent to the return value of the `read(2)` system call.
     #[inline]
-    pub fn result(&self) -> i32 {
+    pub fn raw_result(&self) -> i32 {
         self.0.res
     }
 

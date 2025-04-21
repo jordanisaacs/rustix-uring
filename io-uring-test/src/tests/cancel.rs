@@ -1,6 +1,6 @@
 use crate::Test;
 use io_uring::types::CancelBuilder;
-use io_uring::{cqueue, opcode, squeue, types, IoUring};
+use io_uring::{cqueue, opcode, squeue, types, Errno, IoUring};
 use std::fs::File;
 use std::os::fd::FromRawFd;
 use std::os::unix::io::AsRawFd;
@@ -46,8 +46,8 @@ pub fn test_async_cancel_user_data<S: squeue::EntryMarker, C: cqueue::EntryMarke
     assert_eq!(cqes[0].user_data().u64_(), 2003);
     assert_eq!(cqes[1].user_data().u64_(), 2004);
 
-    assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
-    assert_eq!(cqes[1].result(), 0); // the number of requests cancelled
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED)); // -ECANCELED
+    assert_eq!(cqes[1].result(), Ok(0)); // the number of requests cancelled
 
     Ok(())
 }
@@ -96,9 +96,9 @@ pub fn test_async_cancel_user_data_all<S: squeue::EntryMarker, C: cqueue::EntryM
     assert_eq!(cqes[1].user_data().u64_(), 2003);
     assert_eq!(cqes[2].user_data().u64_(), 2004);
 
-    assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
-    assert_eq!(cqes[1].result(), -libc::ECANCELED); // -ECANCELED
-    assert_eq!(cqes[2].result(), 2); // the number of requests cancelled
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED)); // -ECANCELED
+    assert_eq!(cqes[1].result(), Err(Errno::CANCELED)); // -ECANCELED
+    assert_eq!(cqes[2].result(), Ok(2)); // the number of requests cancelled
 
     Ok(())
 }
@@ -147,9 +147,9 @@ pub fn test_async_cancel_any<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[1].user_data().u64_(), 2004);
     assert_eq!(cqes[2].user_data().u64_(), 2005);
 
-    assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
-    assert_eq!(cqes[1].result(), -libc::ECANCELED);
-    assert_eq!(cqes[2].result(), 2); // the number of requests cancelled
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED)); // -ECANCELED
+    assert_eq!(cqes[1].result(), Err(Errno::CANCELED));
+    assert_eq!(cqes[2].result(), Ok(2)); // the number of requests cancelled
 
     Ok(())
 }
@@ -196,8 +196,8 @@ pub fn test_async_cancel_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data().u64_(), 2003);
     assert_eq!(cqes[1].user_data().u64_(), 2004);
 
-    assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
-    assert_eq!(cqes[1].result(), 0);
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED)); // -ECANCELED
+    assert_eq!(cqes[1].result(), Ok(0));
 
     Ok(())
 }
@@ -247,9 +247,9 @@ pub fn test_async_cancel_fd_all<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[1].user_data().u64_(), 2004);
     assert_eq!(cqes[2].user_data().u64_(), 2005);
 
-    assert_eq!(cqes[0].result(), -libc::ECANCELED); // -ECANCELED
-    assert_eq!(cqes[1].result(), -libc::ECANCELED);
-    assert_eq!(cqes[2].result(), 2); // the number of requests cancelled
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED)); // -ECANCELED
+    assert_eq!(cqes[1].result(), Err(Errno::CANCELED));
+    assert_eq!(cqes[2].result(), Ok(2)); // the number of requests cancelled
 
     Ok(())
 }

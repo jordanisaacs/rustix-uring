@@ -34,7 +34,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x09);
-    assert_eq!(cqes[0].result(), -libc::ETIME);
+    assert_eq!(cqes[0].result(), Err(Errno::TIME));
 
     // add timeout but no
 
@@ -63,7 +63,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x0b);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     // timeout
 
@@ -75,7 +75,7 @@ pub fn test_timeout<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x0a);
-    assert_eq!(cqes[0].result(), -libc::ETIME);
+    assert_eq!(cqes[0].result(), Err(Errno::TIME));
 
     Ok(())
 }
@@ -116,8 +116,8 @@ pub fn test_timeout_count<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x0c);
     assert_eq!(cqes[1].user_data().u64_(), 0x0d);
-    assert_eq!(cqes[0].result(), 0);
-    assert_eq!(cqes[1].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
+    assert_eq!(cqes[1].result(), Ok(0));
 
     Ok(())
 }
@@ -170,8 +170,8 @@ pub fn test_timeout_remove<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x10);
     assert_eq!(cqes[1].user_data().u64_(), 0x11);
-    assert_eq!(cqes[0].result(), -libc::ECANCELED);
-    assert_eq!(cqes[1].result(), 0);
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED));
+    assert_eq!(cqes[1].result(), Ok(0));
 
     Ok(())
 }
@@ -226,8 +226,8 @@ pub fn test_timeout_update<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x10);
     assert_eq!(cqes[1].user_data().u64_(), 0x11);
-    assert_eq!(cqes[0].result(), -libc::ETIME);
-    assert_eq!(cqes[1].result(), 0);
+    assert_eq!(cqes[0].result(), Err(Errno::TIME));
+    assert_eq!(cqes[1].result(), Ok(0));
 
     Ok(())
 }
@@ -280,8 +280,8 @@ pub fn test_timeout_cancel<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x10);
     assert_eq!(cqes[1].user_data().u64_(), 0x11);
-    assert_eq!(cqes[0].result(), -libc::ECANCELED);
-    assert_eq!(cqes[1].result(), 0);
+    assert_eq!(cqes[0].result(), Err(Errno::CANCELED));
+    assert_eq!(cqes[1].result(), Ok(0));
 
     Ok(())
 }
@@ -328,7 +328,7 @@ pub fn test_timeout_abs<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x19);
-    assert_eq!(cqes[0].result(), -libc::ETIME);
+    assert_eq!(cqes[0].result(), Err(Errno::TIME));
 
     Ok(())
 }
@@ -377,7 +377,7 @@ pub fn test_timeout_submit_args<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x1c);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 use crate::utils;
 use crate::Test;
+use io_uring::Errno;
 use io_uring::{cqueue, opcode, squeue, types, IoUring};
 use std::ffi::CString;
 use std::fs;
@@ -78,7 +79,7 @@ pub fn test_file_fsync<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x03);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     Ok(())
 }
@@ -116,7 +117,7 @@ pub fn test_file_fsync_file_range<S: squeue::EntryMarker, C: cqueue::EntryMarker
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x04);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     Ok(())
 }
@@ -149,7 +150,7 @@ pub fn test_file_fallocate<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x10);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     Ok(())
 }
@@ -188,9 +189,9 @@ pub fn test_file_openat2<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x11);
-    assert!(cqes[0].result() > 0);
+    assert!(cqes[0].result().is_ok_and(|x| x > 0));
 
-    let fd = unsafe { fs::File::from_raw_fd(cqes[0].result()) };
+    let fd = unsafe { fs::File::from_raw_fd(cqes[0].result().unwrap() as i32) };
 
     assert!(fd.metadata()?.is_file());
 
@@ -249,9 +250,9 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x11);
         if round == 2 {
-            assert!(cqes[0].result() < 0); // expect no room
+            assert!(cqes[0].result().is_err()); // expect no room
         } else {
-            assert_eq!(cqes[0].result(), round); // expect auto selection to go 0, then 1.
+            assert_eq!(cqes[0].result(), Ok(round)); // expect auto selection to go 0, then 1.
         }
     }
 
@@ -271,7 +272,7 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
 
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x12);
-        assert_eq!(cqes[0].result(), 0); // successful close iff result is 0
+        assert_eq!(cqes[0].result(), Ok(0)); // successful close iff result is 0
     }
 
     // Redo the tests but with manual selection of the file_index value,
@@ -307,9 +308,9 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x11);
         if round == 2 {
-            assert!(cqes[0].result() < 0); // expect 2 won't fit, even though it is being asked for first.
+            assert!(cqes[0].result().is_err()); // expect 2 won't fit, even though it is being asked for first.
         } else {
-            assert_eq!(cqes[0].result(), 0); // success iff zero
+            assert_eq!(cqes[0].result(), Ok(0)); // success iff zero
         }
     }
 
@@ -329,7 +330,7 @@ pub fn test_file_openat2_close_file_index<S: squeue::EntryMarker, C: cqueue::Ent
 
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x12);
-        assert_eq!(cqes[0].result(), 0); // successful close iff result is 0
+        assert_eq!(cqes[0].result(), Ok(0)); // successful close iff result is 0
     }
     // If the fixed-socket operation worked properly, this must not fail.
     ring.submitter().unregister_files().unwrap();
@@ -388,9 +389,9 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x11);
         if round == 2 {
-            assert!(cqes[0].result() < 0); // expect no room
+            assert!(cqes[0].result().is_err()); // expect no room
         } else {
-            assert_eq!(cqes[0].result(), round); // expect auto selection to go 0, then 1.
+            assert_eq!(cqes[0].result(), Ok(round)); // expect auto selection to go 0, then 1.
         }
     }
 
@@ -410,7 +411,7 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
 
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x12);
-        assert_eq!(cqes[0].result(), 0); // successful close iff result is 0
+        assert_eq!(cqes[0].result(), Ok(0)); // successful close iff result is 0
     }
 
     // Redo the tests but with manual selection of the file_index value,
@@ -444,9 +445,9 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x11);
         if round == 2 {
-            assert!(cqes[0].result() < 0); // expect 2 won't fit, even though it is being asked for first.
+            assert!(cqes[0].result().is_err()); // expect 2 won't fit, even though it is being asked for first.
         } else {
-            assert_eq!(cqes[0].result(), 0); // success iff zero
+            assert_eq!(cqes[0].result(), Ok(0)); // success iff zero
         }
     }
 
@@ -466,7 +467,7 @@ pub fn test_file_openat_close_file_index<S: squeue::EntryMarker, C: cqueue::Entr
 
         assert_eq!(cqes.len(), 1);
         assert_eq!(cqes[0].user_data().u64_(), 0x12);
-        assert_eq!(cqes[0].result(), 0); // successful close iff result is 0
+        assert_eq!(cqes[0].result(), Ok(0)); // successful close iff result is 0
     }
     // If the fixed-socket operation worked properly, this must not fail.
     ring.submitter().unregister_files().unwrap();
@@ -502,7 +503,7 @@ pub fn test_file_close<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x12);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     Ok(())
 }
@@ -566,9 +567,9 @@ pub fn test_file_cur_pos<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert_eq!(cqes[1].user_data().u64_(), 0x02);
     assert_eq!(cqes[2].user_data().u64_(), 0x03);
-    assert_eq!(cqes[0].result(), 22);
-    assert_eq!(cqes[1].result(), 22);
-    assert_eq!(cqes[2].result(), text.len() as i32);
+    assert_eq!(cqes[0].result(), Ok(22));
+    assert_eq!(cqes[1].result(), Ok(22));
+    assert_eq!(cqes[2].result(), Ok(text.len() as u32));
 
     assert_eq!(&output, text);
 
@@ -614,7 +615,7 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x99);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     // check
     let statxbuf2 = rustix::fs::statx(
@@ -652,7 +653,7 @@ pub fn test_statx<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x9a);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
 
     assert_same_statx(&statxbuf3, &statxbuf2);
 
@@ -792,8 +793,8 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
     assert_eq!(cqes.len(), 2);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
     assert_eq!(cqes[1].user_data().u64_(), 0x02);
-    assert_eq!(cqes[0].result(), input.0.len() as i32);
-    assert_eq!(cqes[1].result(), input.0.len() as i32);
+    assert_eq!(cqes[0].result(), Ok(input.0.len() as u32));
+    assert_eq!(cqes[1].result(), Ok(input.0.len() as u32));
 
     assert_eq!(input.0[..], output.0[..]);
     assert_eq!(input.0[0], 0xf9);
@@ -819,7 +820,7 @@ pub fn test_file_direct_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarke
     assert_eq!(cqes[0].user_data().u64_(), 0x03);
 
     // when fs does not support Direct IO, it may fallback to buffered IO.
-    assert_eq_warn!(cqes[0].result(), -libc::EINVAL);
+    assert_eq_warn!(cqes[0].result(), Err(Errno::INVAL));
 
     Ok(())
 }
@@ -874,7 +875,7 @@ pub fn test_file_splice<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x33);
-    assert_eq!(cqes[0].result(), 1024);
+    assert_eq!(cqes[0].result(), Ok(1024));
 
     let mut output = [0; 1024];
     pipe_out.read_exact(&mut output)?;
@@ -918,7 +919,7 @@ pub fn test_ftruncate<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x33);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
     assert_eq!(
         fs::read(&file).expect("could not read truncated file"),
         &input[..512]
@@ -938,7 +939,7 @@ pub fn test_ftruncate<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x34);
-    assert_eq!(cqes[0].result(), 0);
+    assert_eq!(cqes[0].result(), Ok(0));
     assert_eq!(
         fs::metadata(&file)
             .expect("could not read truncated file")
@@ -985,7 +986,7 @@ pub fn test_fixed_fd_install<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x01);
-    assert_eq!(cqes[0].result(), 1024);
+    assert_eq!(cqes[0].result(), Ok(1024));
     assert_eq!(output, input);
 
     let fixed_fd_install_e =
@@ -1003,9 +1004,9 @@ pub fn test_fixed_fd_install<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 0x02);
-    let fd = cqes[0].result();
+    let fd = cqes[0].result().unwrap();
     assert!(fd > 0);
-    let mut file = unsafe { fs::File::from_raw_fd(fd) };
+    let mut file = unsafe { fs::File::from_raw_fd(fd as i32) };
     file.read_exact(&mut output)?;
     assert_eq!(output, input);
 
