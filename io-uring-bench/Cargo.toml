@@ -1,6 +1,6 @@
 [package]
 name = "io-uring-bench"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Jordan Isaacs <mail@jdisaacs.com>"]
 edition = "2021"
 publish = false
