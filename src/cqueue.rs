@@ -301,7 +301,7 @@ impl Entry32 {
     /// errno is returned.
     #[inline]
     pub fn result(&self) -> Result<u32, Errno> {
-        // See Entry32::result() for the justification for this logic.
+        // See Entry::result() for the justification for this logic.
         if let Ok(x) = u32::try_from(self.0 .0.res) {
             Ok(x)
         } else {
