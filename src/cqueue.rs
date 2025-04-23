@@ -295,10 +295,24 @@ impl Debug for Entry {
 }
 
 impl Entry32 {
+    /// The result of the operation.  If the operation succeeded, this is the operation-specific
+    /// return value.  For example, for a [`Read`](crate::opcode::Read) operation this is
+    /// equivalent to the return value of the `read(2)` system call.  If the operation failed, the
+    /// errno is returned.
+    #[inline]
+    pub fn result(&self) -> Result<u32, Errno> {
+        // See Entry::result() for the justification for this logic.
+        if let Ok(x) = u32::try_from(self.0 .0.res) {
+            Ok(x)
+        } else {
+            Err(Errno::from_raw_os_error(-self.0 .0.res))
+        }
+    }
+
     /// The operation-specific result code. For example, for a [`Read`](crate::opcode::Read)
     /// operation this is equivalent to the return value of the `read(2)` system call.
     #[inline]
-    pub fn result(&self) -> i32 {
+    pub fn raw_result(&self) -> i32 {
         self.0 .0.res
     }
 
