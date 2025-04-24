@@ -1642,7 +1642,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
 
     // Check the completion events for the two UDP messages, plus a trailing
     // CQE signaling that we ran out of buffers.
-    ring.submitter().submit_and_wait(5).unwrap();
+    ring.submitter().submit_and_wait(6).unwrap();
     let cqes: Vec<io_uring::cqueue::Entry> = ring.completion().map(Into::into).collect();
     let mut pretty_cqes = cqes
         .into_iter()
@@ -1650,7 +1650,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
             let is_final = !io_uring::cqueue::more(cqe.flags());
             let user_data = cqe.user_data().u64_();
             let is_err = cqe.result().is_err();
-            if user_data == 77 {
+            if user_data == 77 && !is_err {
                 // RecvMsgMulti
                 let buf_id = io_uring::cqueue::buffer_select(cqe.flags()).unwrap();
                 let tmp_buf = &buffers[buf_id as usize];
@@ -1681,9 +1681,10 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
             // SendMsgZc with two notification
             (66, false, false),
             (66, false, true),
-            (66, true, true),
             // RecvMsgMulti
             (77, false, false),
+            (77, false, false),
+            (77, true, true), // ran out of buffers
         ]
     );
 
