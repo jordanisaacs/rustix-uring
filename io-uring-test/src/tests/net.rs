@@ -1564,7 +1564,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     // Each one is 512 bytes large.
     const BUF_GROUP: u16 = 33;
     const SIZE: usize = 512;
-    let mut buffers = [[0u8; SIZE]; 3];
+    let mut buffers = [[0u8; SIZE]; 2];
     for (index, buf) in buffers.iter_mut().enumerate() {
         let provide_bufs_e = io_uring::opcode::ProvideBuffers::new(
             buf.as_mut_ptr(),
@@ -1642,29 +1642,16 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
 
     // Check the completion events for the two UDP messages, plus a trailing
     // CQE signaling that we ran out of buffers.
-    ring.submitter().submit_and_wait(5).unwrap();
+    ring.submitter().submit_and_wait(6).unwrap();
     let cqes: Vec<io_uring::cqueue::Entry> = ring.completion().map(Into::into).collect();
-    assert_eq!(cqes.len(), 5);
-    for cqe in cqes {
-        let is_more = io_uring::cqueue::more(cqe.flags());
-        match cqe.user_data().u64_() {
-            // send notifications
-            55 => {
-                assert!(cqe.result().unwrap() > 0);
-                assert!(!is_more);
-            }
-            // SendMsgZc with two notification
-            66 => {
-                if cqe.result().is_ok_and(|x| x > 0) {
-                    assert!(is_more);
-                } else {
-                    assert!(!is_more);
-                }
-            }
-            // RecvMsgMulti
-            77 => {
-                assert!(cqe.result().unwrap() > 0);
-                assert!(is_more);
+    let mut pretty_cqes = cqes
+        .into_iter()
+        .map(|cqe| {
+            let is_final = !io_uring::cqueue::more(cqe.flags());
+            let user_data = cqe.user_data().u64_();
+            let is_err = cqe.result().is_err();
+            if user_data == 77 && !is_err {
+                // RecvMsgMulti
                 let buf_id = io_uring::cqueue::buffer_select(cqe.flags()).unwrap();
                 let tmp_buf = &buffers[buf_id as usize];
                 let msg = types::RecvMsgOut::parse(tmp_buf, &msghdr).unwrap();
@@ -1682,11 +1669,24 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
                 assert_eq!(addr.ip(), client_addr.ip());
                 assert_eq!(addr.port(), client_addr.port());
             }
-            _ => {
-                unreachable!()
-            }
-        }
-    }
+            (user_data, is_err, is_final)
+        })
+        .collect::<Vec<_>>();
+    pretty_cqes.sort();
+    assert_eq!(
+        pretty_cqes,
+        [
+            // send notifications
+            (55, false, true),
+            // SendMsgZc with two notification
+            (66, false, false),
+            (66, false, true),
+            // RecvMsgMulti
+            (77, false, false),
+            (77, false, false),
+            (77, true, true), // ran out of buffers
+        ]
+    );
 
     Ok(())
 }
