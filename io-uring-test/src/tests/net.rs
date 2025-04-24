@@ -1564,7 +1564,7 @@ pub fn test_udp_recvmsg_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker
     // Each one is 512 bytes large.
     const BUF_GROUP: u16 = 33;
     const SIZE: usize = 512;
-    let mut buffers = [[0u8; SIZE]; 3];
+    let mut buffers = [[0u8; SIZE]; 2];
     for (index, buf) in buffers.iter_mut().enumerate() {
         let provide_bufs_e = io_uring::opcode::ProvideBuffers::new(
             buf.as_mut_ptr(),
