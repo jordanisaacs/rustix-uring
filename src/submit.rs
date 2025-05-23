@@ -186,6 +186,17 @@ impl<'a> Submitter<'a> {
         unsafe { self.enter_arg(len as _, want as _, flags, Some(&args.args)) }
     }
 
+    /// Wakeup the sqpoll thread if it has idled.
+    pub fn squeue_wakeup(&self) -> io::Result<()> {
+        // See discussion in [`SubmissionQueue::need_wakeup`].
+        atomic::fence(atomic::Ordering::SeqCst);
+        if self.sq_need_wakeup() {
+            // to_submit is 0 since it is just returned as is in case of sqpoll
+            unsafe { self.enter_sigmask(0 as _, 0 as _, sys::IoringEnterFlags::SQ_WAKEUP, None)? };
+        }
+        Ok(())
+    }
+
     /// Wait for the submission queue to have free entries.
     pub fn squeue_wait(&self) -> io::Result<usize> {
         unsafe { self.enter_sigmask(0, 0, sys::IoringEnterFlags::SQ_WAIT, None) }
