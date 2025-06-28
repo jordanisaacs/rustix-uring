@@ -52,7 +52,7 @@ pub use ::rustix::process::{Pid, WaitIdOptions, WaitIdStatus};
 pub use sys::ReadWriteFlags as RwFlags;
 pub use sys::{
     iovec, Advice, AtFlags, EpollEvent, Mode, MsgHdr, OFlags, RenameFlags, ResolveFlags,
-    SocketAddrLen, SocketAddrOpaque, Statx, StatxFlags,
+    SocketAddrLen, SocketAddrOpaque, Statx, StatxFlags, XattrFlags,
 };
 
 /// A file descriptor that has not been registered with io_uring.
