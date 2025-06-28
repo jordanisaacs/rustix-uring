@@ -1492,6 +1492,59 @@ opcode! {
     }
 }
 
+opcode! {
+    /// Get extended attribute from a file descriptor, equivalent to `fgetxattr(2)`.
+    pub struct FGetXattr {
+        fd: { impl sealed::UseFixed },
+        name: { *const sys::c_char },
+        value: { *mut core::ffi::c_void },
+        len: { u32 },
+        ;;
+    }
+
+    pub const CODE = sys::IoringOp::Fgetxattr;
+
+    pub fn build(self) -> Entry {
+        let FGetXattr { fd, name, value, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value;
+        sqe.op_flags.xattr_flags = sys::XattrFlags::empty();
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Set extended attribute on a file descriptor, equivalent to `fsetxattr(2)`.
+    pub struct FSetXattr {
+        fd: { impl sealed::UseFixed },
+        name: { *const sys::c_char },
+        value: { *const core::ffi::c_void },
+        len: { u32 },
+        ;;
+        flags: sys::XattrFlags = sys::XattrFlags::empty()
+    }
+
+    pub const CODE = sys::IoringOp::Fsetxattr;
+
+    pub fn build(self) -> Entry {
+        let FSetXattr { fd, name, value, flags, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value.cast_mut();
+        sqe.op_flags.xattr_flags = flags;
+        Entry(sqe)
+    }
+}
+
 // === 5.18 ===
 
 opcode! {
