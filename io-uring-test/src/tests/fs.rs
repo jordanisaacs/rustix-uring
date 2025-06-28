@@ -1223,3 +1223,77 @@ pub fn test_fixed_fd_install<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     Ok(())
 }
+
+pub fn test_get_set_xattr<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
+    ring: &mut IoUring<S, C>,
+    test: &Test,
+) -> anyhow::Result<()> {
+    require!(
+        test;
+        test.probe.is_supported(opcode::GetXattr::CODE);
+        test.probe.is_supported(opcode::SetXattr::CODE);
+    );
+
+    println!("test get_set_xattr");
+
+    let dir = tempfile::tempdir()?;
+    let file_path = dir.path().join("test-file");
+    fs::write(&file_path, b"test content")?;
+
+    let file_path_cstr = CString::new(file_path.as_os_str().as_bytes())?;
+
+    let attr_name = CString::new("user.test_attr")?;
+    let attr_value = CString::new("test_value")?;
+    let mut buffer = vec![0u8; 128];
+
+    // Set extended attribute
+    let setxattr_e = opcode::SetXattr::new(
+        attr_name.as_ptr(),
+        attr_value.as_ptr().cast(),
+        file_path_cstr.as_ptr().cast(),
+        attr_value.as_bytes().len() as u32,
+    )
+    .flags(types::XattrFlags::empty())
+    .build()
+    .user_data(0x01)
+    .into();
+
+    unsafe {
+        ring.submission().push(&setxattr_e).expect("queue is full");
+    }
+
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 0x01);
+    assert_eq!(cqes[0].result(), Ok(0));
+
+    // Get extended attribute
+    let getxattr_e = opcode::GetXattr::new(
+        attr_name.as_ptr(),
+        buffer.as_mut_ptr().cast(),
+        file_path_cstr.as_ptr().cast(),
+        buffer.len() as u32,
+    )
+    .build()
+    .user_data(0x02)
+    .into();
+
+    unsafe {
+        ring.submission().push(&getxattr_e).expect("queue is full");
+    }
+
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 0x02);
+    let len = cqes[0].result().unwrap() as usize;
+    assert_eq!(len, attr_value.as_bytes().len());
+
+    let retrieved_value = CString::new(&buffer[..len])?;
+    assert_eq!(retrieved_value, attr_value);
+
+    Ok(())
+}

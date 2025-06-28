@@ -1437,6 +1437,61 @@ opcode! {
     }
 }
 
+// === 5.17 ===
+
+opcode! {
+    /// Get extended attribute, equivalent to `getxattr(2)`.
+    pub struct GetXattr {
+        name: { *const sys::c_char },
+        value: { *mut core::ffi::c_void },
+        path: { *const sys::c_char },
+        len: { u32 },
+        ;;
+    }
+
+    pub const CODE = sys::IoringOp::Getxattr;
+
+    pub fn build(self) -> Entry {
+        let GetXattr { name, value, path, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value;
+        sqe.addr3_or_cmd.path.ptr = path.cast_mut().cast();
+        sqe.op_flags.xattr_flags = sys::XattrFlags::empty();
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Set extended attribute, equivalent to `setxattr(2)`.
+    pub struct SetXattr {
+        name: { *const sys::c_char },
+        value: { *const core::ffi::c_void },
+        path: { *const sys::c_char },
+        len: { u32 },
+        ;;
+        flags: sys::XattrFlags = sys::XattrFlags::empty()
+    }
+
+    pub const CODE = sys::IoringOp::Setxattr;
+
+    pub fn build(self) -> Entry {
+        let SetXattr { name, value, path, flags, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value.cast_mut();
+        sqe.addr3_or_cmd.path.ptr = path.cast_mut().cast();
+        sqe.op_flags.xattr_flags = flags;
+        Entry(sqe)
+    }
+}
+
 // === 5.18 ===
 
 opcode! {
