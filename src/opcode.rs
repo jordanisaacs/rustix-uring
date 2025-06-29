@@ -644,6 +644,35 @@ opcode! {
 }
 
 opcode! {
+    /// Set a socket option.
+    pub struct SetSockOpt {
+        fd: { impl sealed::UseFixed },
+        level: { u32 },
+        optname: { u32 },
+        optval: { *const core::ffi::c_void },
+        optlen: { u32 },
+        ;;
+        cmd_op: sys::IoringSocketOp = sys::IoringSocketOp::default()
+    }
+
+    pub const CODE = sys::IoringOp::UringCmd;
+
+    pub fn build(self) -> Entry {
+        let SetSockOpt { fd, level, optname, optval, optlen, cmd_op } = self;
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.cmd_op.cmd_op = sys::IoringSocketOp::Setsockopt as _;
+        sqe.addr_or_splice_off_in.sockopt_level_optname.level = level;
+        sqe.addr_or_splice_off_in.sockopt_level_optname.optname = optname;
+        sqe.op_flags.socket_op = cmd_op;
+        sqe.splice_fd_in_or_file_index_or_addr_len.optlen = optlen;
+        sqe.addr3_or_cmd.optval.ptr = optval.cast_mut();
+        Entry(sqe)
+    }
+}
+
+opcode! {
     /// Attempt to cancel an already issued request.
     pub struct AsyncCancel {
         user_data: { sys::io_uring_user_data }
