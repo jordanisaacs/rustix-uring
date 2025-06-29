@@ -646,4 +646,12 @@ impl<'a> Submitter<'a> {
             1,
         )
     }
+
+    /// Register a netdev hw rx queue for zerocopy.
+    ///
+    /// Available since 6.15.
+    pub fn register_ifq(&self, reg: &types::io_uring_zcrx_ifq_reg) -> io::Result<()> {
+        let ptr = ::core::ptr::from_ref(reg).cast();
+        execute(self.fd, sys::IoringRegisterOp::RegisterZcrxIfq, ptr, 1)
+    }
 }
