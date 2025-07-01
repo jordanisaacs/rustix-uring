@@ -2273,3 +2273,28 @@ opcode! {
         Entry(sqe)
     }
 }
+
+opcode! {
+    /// Issue the equivalent of a `epoll_wait(2)` system call.
+    pub struct EpollWait {
+        fd: { impl sealed::UseFixed },
+        events: { *mut ::rustix::event::epoll::Event },
+        max_events: { u32 },
+        ;;
+        flags: u32 = 0,
+    }
+
+    pub const CODE = sys::IoringOp::EpollWait;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, events, max_events, flags } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = events.cast();
+        sqe.len.len = max_events;
+        sqe.op_flags.poll32_events = flags;
+        Entry(sqe)
+    }
+}
