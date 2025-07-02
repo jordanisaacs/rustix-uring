@@ -2298,3 +2298,65 @@ opcode! {
         Entry(sqe)
     }
 }
+
+opcode! {
+    /// Vectored read into a fixed buffer, equivalent to `preadv2(2)`.
+    pub struct ReadvFixed {
+        fd: { impl sealed::UseFixed },
+        iovec: { *const types::iovec },
+        len: { u32 },
+        buf_index: { u16 },
+        ;;
+        ioprio: u16 = 0,
+        offset: u64 = 0,
+        rw_flags: types::RwFlags = types::RwFlags::empty(),
+    }
+
+    pub const CODE = sys::IoringOp::ReadvFixed;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, iovec, len, buf_index, offset, ioprio, rw_flags } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.off = offset as _;
+        sqe.addr_or_splice_off_in.addr.ptr = iovec as _;
+        sqe.len.len = len;
+        sqe.buf.buf_index = buf_index;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.op_flags.rw_flags = rw_flags;
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Vectored write from a fixed buffer, equivalent to `pwritev2(2)`.
+    pub struct WritevFixed {
+        fd: { impl sealed::UseFixed },
+        iovec: { *const sys::iovec },
+        len: { u32 },
+        buf_index: { u16 },
+        ;;
+        ioprio: u16 = 0,
+        offset: u64 = 0,
+        rw_flags: types::RwFlags = types::RwFlags::empty()
+    }
+
+    pub const CODE = sys::IoringOp::WritevFixed;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, iovec, len, buf_index, offset, ioprio, rw_flags } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.off = offset as _;
+        sqe.addr_or_splice_off_in.addr.ptr = iovec as _;
+        sqe.len.len = len;
+        sqe.buf.buf_index = buf_index;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.op_flags.rw_flags = rw_flags;
+        Entry(sqe)
+    }
+}
