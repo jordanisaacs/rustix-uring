@@ -1780,6 +1780,39 @@ opcode! {
 }
 
 opcode! {
+    /// Issue the equivalent of a waitid(2) system call.
+    pub struct Waitid {
+        id: { types::WaitId },
+        infop: { *mut types::WaitIdStatus },
+        ;;
+        options: types::WaitIdOptions = types::WaitIdOptions::empty()
+    }
+
+    pub const CODE = sys::IoringOp::Waitid;
+
+    pub fn build(self) -> Entry {
+        use ::linux_raw_sys::general::{P_ALL, P_PGID, P_PID, P_PIDFD};
+
+        let Self { id, infop, options } = self;
+
+        let (idtype, id) = match id {
+            types::WaitId::All => (P_ALL, 0),
+            types::WaitId::Pid(pid) => (P_PID, types::Pid::as_raw(Some(pid)) as _),
+            types::WaitId::Pgid(pgid) => (P_PGID, types::Pid::as_raw(pgid)) as _,
+            types::WaitId::PidFd(fd) => (P_PIDFD, fd.0),
+        };
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        sqe.fd = id;
+        sqe.len.len = idtype;
+        sqe.splice_fd_in_or_file_index_or_addr_len.file_index = options.bits();
+        sqe.off_or_addr2.addr2.ptr = infop.cast();
+        Entry(sqe)
+    }
+}
+
+opcode! {
     /// Wait on a futex, like but not equivalant to `futex(2)`'s `FUTEX_WAIT_BITSET`.
     ///
     /// Wait on a futex at address `futex` and which still has the value `val` and with `futex2(2)`

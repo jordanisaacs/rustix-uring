@@ -10,3 +10,4 @@ pub mod register_buffers;
 pub mod register_sync_cancel;
 pub mod regression;
 pub mod timeout;
+pub mod waitid;
