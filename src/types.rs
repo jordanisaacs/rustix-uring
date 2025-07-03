@@ -48,6 +48,7 @@ use core::marker::PhantomData;
 use core::num::NonZeroU32;
 use rustix::fd::RawFd;
 
+pub use ::rustix::process::{Pid, WaitIdOptions, WaitIdStatus};
 pub use sys::ReadWriteFlags as RwFlags;
 pub use sys::{
     iovec, Advice, AtFlags, EpollEvent, Mode, MsgHdr, OFlags, RenameFlags, ResolveFlags,
@@ -673,6 +674,29 @@ impl FutexWaitV {
     pub const fn flags(mut self, flags: sys::FutexWaitFlags) -> Self {
         self.0.flags = flags;
         self
+    }
+}
+
+#[non_exhaustive]
+pub enum WaitId {
+    All,
+    Pid(self::Pid),
+    Pgid(Option<self::Pid>),
+    PidFd(self::Fd),
+}
+
+impl<'a> From<::rustix::process::WaitId<'a>> for self::WaitId {
+    fn from(value: ::rustix::process::WaitId<'a>) -> Self {
+        use ::rustix::fd::AsRawFd as _;
+        match value {
+            ::rustix::process::WaitId::All => self::WaitId::All,
+            ::rustix::process::WaitId::Pid(pid) => self::WaitId::Pid(pid),
+            ::rustix::process::WaitId::Pgid(pid) => self::WaitId::Pgid(pid),
+            ::rustix::process::WaitId::PidFd(borrowed_fd) => {
+                self::WaitId::PidFd(self::Fd(borrowed_fd.as_raw_fd()))
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
