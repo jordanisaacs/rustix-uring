@@ -19,7 +19,8 @@ members = [ "io-uring-test", "io-uring-bench" ]
 
 [dependencies]
 bitflags = { version = "2.4.0", default-features = false }
-rustix = { version = "1.0.2", default-features = false, features = ["io_uring", "mm", "thread"] }
+linux-raw-sys = { version = "0.10.0", default-features = false }
+rustix = { version = "1.0.2", default-features = false, features = ["io_uring", "mm", "process", "thread"] }
 
 [dev-dependencies]
 libc = "0.2.98"
@@ -27,3 +28,7 @@ anyhow = "1"
 rustix = "1.0.2"
 socket2 = "0.5"
 slab = "0.4"
+
+[patch.crates-io]
+linux-raw-sys = { git = "https://github.com/silvanshade/linux-raw-sys", branch = "io_uring-zcrx" }
+rustix = { git = "https://github.com/silvanshade/rustix", branch = "linux-6.15-io_uring" }

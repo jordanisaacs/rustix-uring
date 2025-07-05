@@ -160,11 +160,7 @@ pub fn test_tcp_send_bundle<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     unsafe {
         let mut queue = ring.submission();
-        let send_e = send_e
-            .build()
-            .user_data(0x01)
-            .flags(squeue::Flags::IO_LINK)
-            .into();
+        let send_e = send_e.build().user_data(0x01).into();
         queue.push(&send_e).expect("queue is full");
     }
 
@@ -1498,11 +1494,206 @@ pub fn test_socket<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
     assert_eq!(cqes.len(), 1);
     assert_eq!(cqes[0].user_data().u64_(), 42);
-    assert!(cqes[0].result().unwrap() as i32 != plain_fd);
+
+    let fd = cqes[0].result().unwrap() as i32;
+    assert!(fd != plain_fd);
     assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
 
+    let io_uring_socket = unsafe { Socket::from_raw_fd(fd) };
+
+    // Try a setsockopt.
+    {
+        let mut optval: libc::c_int = 0;
+        let mut optval_size: libc::socklen_t = std::mem::size_of_val(&optval) as libc::socklen_t;
+        // Get value before.
+        let ret = unsafe {
+            libc::getsockopt(
+                io_uring_socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_REUSEADDR,
+                &mut optval as *mut _ as *mut libc::c_void,
+                &mut optval_size as *mut _ as *mut libc::socklen_t,
+            )
+        };
+        assert_eq!(ret, 0);
+        assert_eq!(optval, 0);
+
+        // Set value.
+        optval = 1;
+        let op = io_uring::opcode::SetSockOpt::new(
+            io_uring::types::Fd(io_uring_socket.as_raw_fd()),
+            libc::SOL_SOCKET as u32,
+            libc::SO_REUSEADDR as u32,
+            &optval as *const _ as *const libc::c_void,
+            std::mem::size_of_val(&optval) as libc::socklen_t,
+        )
+        .build()
+        .user_data(1234);
+        unsafe {
+            ring.submission().push(&op.into()).expect("queue is full");
+        }
+        ring.submit_and_wait(1)?;
+        let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+        assert_eq!(cqes.len(), 1);
+        assert_eq!(cqes[0].user_data().u64_(), 1234);
+        assert_eq!(cqes[0].result(), Ok(0));
+        assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
+
+        // Check value actually set.
+        optval = 0;
+        let ret = unsafe {
+            libc::getsockopt(
+                io_uring_socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_REUSEADDR,
+                &mut optval as *mut _ as *mut libc::c_void,
+                &mut optval_size as *mut _ as *mut libc::socklen_t,
+            )
+        };
+        assert_eq!(ret, 0);
+        assert_eq!(optval, 1);
+    }
+
     // Close both sockets, to avoid leaking FDs.
-    let io_uring_socket = unsafe { Socket::from_raw_fd(cqes[0].result().unwrap() as i32) };
+    drop(plain_socket);
+    drop(io_uring_socket);
+
+    // Cleanup all fixed files (if any), then reserve slot 0.
+    let _ = ring.submitter().unregister_files();
+    ring.submitter().register_files_sparse(1).unwrap();
+
+    let fixed_socket_op = opcode::Socket::new(
+        Domain::IPV4.into(),
+        Type::DGRAM.into(),
+        Protocol::UDP.into(),
+    );
+    let dest_slot = types::DestinationSlot::try_from_slot_target(0).unwrap();
+    unsafe {
+        ring.submission()
+            .push(
+                &fixed_socket_op
+                    .file_index(Some(dest_slot))
+                    .build()
+                    .user_data(55)
+                    .into(),
+            )
+            .expect("queue is full");
+    }
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 55);
+    assert_eq!(cqes[0].result(), Ok(0));
+    assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
+
+    // If the fixed-socket operation worked properly, this must not fail.
+    ring.submitter().unregister_files().unwrap();
+
+    Ok(())
+}
+
+pub fn test_socket_bind_listen<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
+    ring: &mut IoUring<S, C>,
+    test: &Test,
+) -> anyhow::Result<()> {
+    use socket2::{Domain, Protocol, Socket, Type};
+
+    require!(
+        test;
+        test.probe.is_supported(opcode::Socket::CODE);
+        test.probe.is_supported(opcode::Bind::CODE);
+        test.probe.is_supported(opcode::Listen::CODE);
+    );
+
+    println!("test socket_bind_listen");
+
+    // Open a TCP socket through old-style `socket(2)` syscall.
+    // This is used both as a kernel sanity check, and for comparing the returned io-uring FD.
+    let plain_socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();
+    let plain_fd = plain_socket.as_raw_fd();
+
+    let socket_fd_op = opcode::Socket::new(
+        Domain::IPV4.into(),
+        Type::STREAM.into(),
+        Protocol::TCP.into(),
+    );
+    unsafe {
+        ring.submission()
+            .push(&socket_fd_op.build().user_data(42).into())
+            .expect("queue is full");
+    }
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 42);
+
+    let fd = cqes[0].result().unwrap() as i32;
+
+    let io_uring_socket = unsafe { Socket::from_raw_fd(fd) };
+    assert!(io_uring_socket.as_raw_fd() != plain_fd);
+    assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
+
+    // Try to bind.
+    {
+        let server_addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let server_addr: socket2::SockAddr = server_addr.into();
+        let op = io_uring::opcode::Bind::new(
+            io_uring::types::Fd(io_uring_socket.as_raw_fd()),
+            server_addr.as_ptr() as *const _,
+            server_addr.len(),
+        )
+        .build()
+        .user_data(2345);
+        unsafe {
+            ring.submission().push(&op.into()).expect("queue is full");
+        }
+        ring.submit_and_wait(1)?;
+        let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+        assert_eq!(cqes.len(), 1);
+        assert_eq!(cqes[0].user_data().u64_(), 2345);
+        assert_eq!(cqes[0].result(), Ok(0));
+        assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
+
+        assert_eq!(
+            io_uring_socket
+                .local_addr()
+                .expect("no local addr")
+                .as_socket_ipv4()
+                .expect("no IPv4 address")
+                .ip(),
+            server_addr.as_socket_ipv4().unwrap().ip()
+        );
+    }
+
+    // Try to listen.
+    {
+        let op =
+            io_uring::opcode::Listen::new(io_uring::types::Fd(io_uring_socket.as_raw_fd()), 128)
+                .build()
+                .user_data(3456);
+        unsafe {
+            ring.submission().push(&op.into()).expect("queue is full");
+        }
+        ring.submit_and_wait(1)?;
+        let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+        assert_eq!(cqes.len(), 1);
+        assert_eq!(cqes[0].user_data().u64_(), 3456);
+        assert_eq!(cqes[0].result(), Ok(0));
+        assert_eq!(cqes[0].flags(), cqueue::Flags::empty());
+
+        // Ensure the socket is actually in the listening state.
+        _ = TcpStream::connect(
+            io_uring_socket
+                .local_addr()
+                .unwrap()
+                .as_socket_ipv4()
+                .unwrap(),
+        )?;
+    }
+
+    // Close both sockets, to avoid leaking FDs.
     drop(plain_socket);
     drop(io_uring_socket);
 

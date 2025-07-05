@@ -1,5 +1,8 @@
+use crate::tests::register_buf_ring;
 use crate::utils;
 use crate::Test;
+use ::rustix::io_uring::iovec;
+use ::std::collections::BTreeSet;
 use io_uring::Errno;
 use io_uring::{cqueue, opcode, squeue, types, IoUring};
 use std::ffi::CString;
@@ -28,6 +31,215 @@ pub fn test_file_write_read<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     Ok(())
 }
 
+pub fn test_pipe_read_multishot<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
+    ring: &mut IoUring<S, C>,
+    test: &Test,
+) -> anyhow::Result<()> {
+    require!(
+        test;
+        test.probe.is_supported(opcode::Write::CODE);
+        test.probe.is_supported(opcode::ReadMulti::CODE);
+    );
+
+    println!("test pipe_read_multishot");
+
+    let (rx, tx) = ::rustix::pipe::pipe()?;
+
+    const BYTES0: &[u8] = "The quick brown fox jumps over the lazy dog.".as_bytes();
+    const BYTES1: &[u8] = "我能吞下玻璃而不伤身体。".as_bytes();
+
+    let buf_ring = register_buf_ring::Builder::new(0xcafe)
+        .ring_entries(2)
+        .buf_len(BYTES0.len().max(BYTES1.len()))
+        .build()?;
+    buf_ring.rc.register(ring)?;
+
+    let mut got_writes;
+    let mut got_reads;
+    let mut got_bufs: BTreeSet<u16>;
+
+    // Prepare multishot read
+
+    let sqe_read = opcode::ReadMulti::new(types::Fd(rx.as_raw_fd()), 0, 0xcafe)
+        .build()
+        .user_data(0x777)
+        .into();
+    unsafe { ring.submission().push(&sqe_read) }?;
+
+    // Write BYTES0
+
+    let sqe_write0 = opcode::Write::new(
+        types::Fd(tx.as_raw_fd()),
+        BYTES0.as_ptr(),
+        BYTES0.len() as _,
+    )
+    .build()
+    .user_data(0x555)
+    .flags(squeue::Flags::IO_LINK)
+    .into();
+    unsafe { ring.submission().push(&sqe_write0) }?;
+    ring.submit_and_wait(1)?;
+
+    // Process one write/read pair. Fills the first buffer in the ring.
+
+    got_writes = 0;
+    got_reads = 0;
+    got_bufs = BTreeSet::new();
+    for cqe in ring.completion().map(Into::<cqueue::Entry>::into) {
+        let len = cqe.result()?;
+        match cqe.user_data_u64() {
+            0x555 => {
+                assert_eq!(BYTES0.len(), len as _);
+                got_writes += 1;
+            }
+            0x777 => {
+                let bufs = buf_ring.rc.get_bufs(&buf_ring, len, cqe.flags());
+                assert_eq!(1, bufs.len());
+                assert_eq!(Some(0), cqueue::buffer_select(cqe.flags()));
+                assert_eq!(BYTES0.len(), len as _);
+                assert_eq!(BYTES0, bufs[0].as_slice());
+                assert!(cqueue::more(cqe.flags()));
+                got_reads += 1;
+                got_bufs.insert(0);
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(got_writes, 1);
+    assert_eq!(got_reads, 1);
+    assert_eq!(got_bufs, BTreeSet::from([0]));
+
+    // Write BYTES1
+
+    let sqe_write1 = opcode::Write::new(
+        types::Fd(tx.as_raw_fd()),
+        BYTES1.as_ptr(),
+        BYTES1.len() as _,
+    )
+    .build()
+    .user_data(0x666)
+    .flags(squeue::Flags::IO_LINK)
+    .into();
+    unsafe { ring.submission().push(&sqe_write1) }?;
+    ring.submit_and_wait(1)?;
+
+    // Process one write/read pair. Fills the first buffer in the ring.
+
+    got_writes = 0;
+    got_reads = 0;
+    got_bufs = BTreeSet::new();
+    for cqe in ring.completion().map(Into::<cqueue::Entry>::into) {
+        let len = cqe.result()?;
+        match cqe.user_data_u64() {
+            0x666 => {
+                assert_eq!(BYTES1.len(), len as _);
+                got_writes += 1;
+            }
+            0x777 => {
+                let bufs = buf_ring.rc.get_bufs(&buf_ring, len, cqe.flags());
+                assert_eq!(1, bufs.len());
+                assert_eq!(Some(1), cqueue::buffer_select(cqe.flags()));
+                assert_eq!(BYTES1.len(), len as _);
+                assert_eq!(BYTES1, bufs[0].as_slice());
+                assert!(cqueue::more(cqe.flags()));
+                got_reads += 1;
+                got_bufs.insert(1);
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(got_writes, 1);
+    assert_eq!(got_reads, 1);
+    assert_eq!(got_bufs, BTreeSet::from([1]));
+
+    // Write BYTES0 and BYTES1
+
+    let sqe_write0 = opcode::Write::new(
+        types::Fd(tx.as_raw_fd()),
+        BYTES0.as_ptr(),
+        BYTES0.len() as _,
+    )
+    .build()
+    .flags(squeue::Flags::IO_LINK)
+    .user_data(0x555)
+    .into();
+    let sqe_write1 = opcode::Write::new(
+        types::Fd(tx.as_raw_fd()),
+        BYTES1.as_ptr(),
+        BYTES1.len() as _,
+    )
+    .build()
+    .flags(squeue::Flags::IO_LINK)
+    .user_data(0x666)
+    .into();
+    unsafe { ring.submission().push_multiple(&[sqe_write0, sqe_write1]) }?;
+    ring.submit_and_wait(1)?;
+
+    // Process two write/read pairs. Fills the first and second buffer in the ring.
+
+    got_writes = 0;
+    got_reads = 0;
+    got_bufs = BTreeSet::new();
+    for cqe in ring.completion().map(Into::<cqueue::Entry>::into) {
+        let len = cqe.result()?;
+        match cqe.user_data_u64() {
+            0x555 => {
+                assert_eq!(BYTES0.len(), len as _);
+                assert_eq!(got_writes, 0);
+                got_writes += 1;
+            }
+            0x666 => {
+                assert_eq!(BYTES1.len(), len as _);
+                assert_eq!(got_writes, 1);
+                got_writes += 1;
+            }
+            0x777 => {
+                let bufs = buf_ring.rc.get_bufs(&buf_ring, len, cqe.flags());
+                assert_eq!(1, bufs.len());
+                match cqueue::buffer_select(cqe.flags()) {
+                    Some(idx @ 0) => {
+                        assert_eq!(BYTES0.len(), len as _);
+                        assert_eq!(BYTES0, bufs[0].as_slice());
+                        assert_eq!(got_reads, 0);
+                        assert_eq!(got_bufs, BTreeSet::from([]));
+                        got_bufs.insert(idx);
+                    }
+                    Some(idx @ 1) => {
+                        assert_eq!(BYTES1.len(), len as _);
+                        assert_eq!(BYTES1, bufs[0].as_slice());
+                        assert_eq!(got_reads, 1);
+                        assert_eq!(got_bufs, BTreeSet::from([0]));
+                        got_bufs.insert(idx);
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(cqueue::more(cqe.flags()));
+                got_reads += 1;
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(got_writes, 2);
+    assert_eq!(got_reads, 2);
+    assert_eq!(got_bufs, BTreeSet::from([0, 1]));
+
+    // Close the pipe writer fd to observe termination of the multi-read.
+
+    drop(tx);
+
+    ring.submit_and_wait(0)?;
+    let mut completions = ring.completion().map(Into::<cqueue::Entry>::into);
+    assert_eq!(1, completions.len());
+
+    let cqe = completions.next().unwrap();
+    let len = cqe.result()?;
+    assert_eq!(0, len);
+    assert_eq!(0x777, cqe.user_data_u64());
+    assert!(!cqueue::more(cqe.flags()));
+
+    Ok(())
+}
+
 pub fn test_file_writev_readv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     ring: &mut IoUring<S, C>,
     test: &Test,
@@ -44,6 +256,111 @@ pub fn test_file_writev_readv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let fd = types::Fd(fd.as_raw_fd());
 
     utils::writev_readv(ring, fd, fd)?;
+
+    Ok(())
+}
+
+pub fn test_pipe_fixed_writev_readv<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
+    ring: &mut IoUring<S, C>,
+    test: &Test,
+) -> anyhow::Result<()> {
+    require!(
+        test;
+        test.probe.is_supported(opcode::WritevFixed::CODE);
+        test.probe.is_supported(opcode::ReadvFixed::CODE);
+    );
+
+    println!("test pipe_fixed_writev_readv");
+
+    ring.submitter().unregister_buffers()?;
+
+    let (rx, tx) = ::rustix::pipe::pipe()?;
+
+    const BYTES0: &[u8] = "The quick brown fox jumps over the lazy dog.".as_bytes();
+    const BYTES1: &[u8] = "我能吞下玻璃而不伤身体。".as_bytes();
+
+    let mut src = Vec::with_capacity(BYTES0.len() + BYTES1.len());
+    src.extend_from_slice(BYTES0);
+    src.extend_from_slice(BYTES1);
+
+    let mut dst = vec![0u8; BYTES0.len() + BYTES1.len()];
+
+    unsafe {
+        ring.submitter().register_buffers(&[
+            iovec {
+                iov_base: src.as_mut_ptr() as *mut _,
+                iov_len: src.len(),
+            },
+            iovec {
+                iov_base: dst.as_mut_ptr() as *mut _,
+                iov_len: dst.len(),
+            },
+        ])?;
+    }
+
+    let src_parts = [
+        libc::iovec {
+            iov_base: src.as_ptr() as *mut _,
+            iov_len: BYTES0.len(),
+        },
+        libc::iovec {
+            iov_base: unsafe { src.as_ptr().add(BYTES0.len()) } as *mut _,
+            iov_len: BYTES1.len(),
+        },
+    ];
+    unsafe {
+        ring.submission().push(
+            &opcode::WritevFixed::new(
+                types::Fd(tx.as_raw_fd()),
+                src_parts.as_ptr().cast(),
+                src_parts.len() as u32,
+                0,
+            )
+            .build()
+            .user_data(0x666)
+            .into(),
+        )?;
+    }
+    ring.submit_and_wait(1)?;
+    for cqe in ring.completion().map(Into::<cqueue::Entry>::into) {
+        assert_eq!(cqe.user_data_u64(), 0x666);
+        let len = cqe.result()?;
+        assert_eq!(len, src.len() as _);
+    }
+
+    let dst_parts = [
+        libc::iovec {
+            iov_base: dst.as_ptr() as *mut _,
+            iov_len: BYTES0.len(),
+        },
+        libc::iovec {
+            iov_base: unsafe { dst.as_ptr().add(BYTES0.len()) } as *mut _,
+            iov_len: BYTES1.len(),
+        },
+    ];
+    unsafe {
+        ring.submission().push(
+            &opcode::ReadvFixed::new(
+                types::Fd(rx.as_raw_fd()),
+                dst_parts.as_ptr().cast(),
+                dst_parts.len() as u32,
+                1,
+            )
+            .build()
+            .user_data(0x666)
+            .into(),
+        )?;
+    }
+    ring.submit_and_wait(1)?;
+    for cqe in ring.completion().map(Into::<cqueue::Entry>::into) {
+        assert_eq!(cqe.user_data_u64(), 0x666);
+        let len = cqe.result()?;
+        assert_eq!(len, src.len() as _);
+    }
+
+    ring.submitter().unregister_buffers()?;
+
+    assert_eq!(src, dst);
 
     Ok(())
 }
@@ -1009,6 +1326,151 @@ pub fn test_fixed_fd_install<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     let mut file = unsafe { fs::File::from_raw_fd(fd as i32) };
     file.read_exact(&mut output)?;
     assert_eq!(output, input);
+
+    Ok(())
+}
+
+pub fn test_get_set_xattr<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
+    ring: &mut IoUring<S, C>,
+    test: &Test,
+) -> anyhow::Result<()> {
+    require!(
+        test;
+        test.probe.is_supported(opcode::GetXattr::CODE);
+        test.probe.is_supported(opcode::SetXattr::CODE);
+    );
+
+    println!("test get_set_xattr");
+
+    let dir = tempfile::tempdir()?;
+    let file_path = dir.path().join("test-file");
+    fs::write(&file_path, b"test content")?;
+
+    let file_path_cstr = CString::new(file_path.as_os_str().as_bytes())?;
+
+    let attr_name = CString::new("user.test_attr")?;
+    let attr_value = CString::new("test_value")?;
+    let mut buffer = vec![0u8; 128];
+
+    // Set extended attribute
+    let setxattr_e = opcode::SetXattr::new(
+        attr_name.as_ptr(),
+        attr_value.as_ptr().cast(),
+        file_path_cstr.as_ptr().cast(),
+        attr_value.as_bytes().len() as u32,
+    )
+    .flags(types::XattrFlags::empty())
+    .build()
+    .user_data(0x01)
+    .into();
+
+    unsafe {
+        ring.submission().push(&setxattr_e).expect("queue is full");
+    }
+
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 0x01);
+    assert_eq!(cqes[0].result(), Ok(0));
+
+    // Get extended attribute
+    let getxattr_e = opcode::GetXattr::new(
+        attr_name.as_ptr(),
+        buffer.as_mut_ptr().cast(),
+        file_path_cstr.as_ptr().cast(),
+        buffer.len() as u32,
+    )
+    .build()
+    .user_data(0x02)
+    .into();
+
+    unsafe {
+        ring.submission().push(&getxattr_e).expect("queue is full");
+    }
+
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 0x02);
+    let len = cqes[0].result().unwrap() as usize;
+    assert_eq!(len, attr_value.as_bytes().len());
+
+    let retrieved_value = CString::new(&buffer[..len])?;
+    assert_eq!(retrieved_value, attr_value);
+
+    Ok(())
+}
+
+pub fn test_f_get_set_xattr<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
+    ring: &mut IoUring<S, C>,
+    test: &Test,
+) -> anyhow::Result<()> {
+    require!(
+        test;
+        test.probe.is_supported(opcode::FGetXattr::CODE);
+        test.probe.is_supported(opcode::FSetXattr::CODE);
+    );
+
+    println!("test f_get_set_xattr");
+
+    let file = tempfile::tempfile()?;
+    let fd = types::Fd(file.as_raw_fd());
+
+    let attr_name = CString::new("user.test_attr")?;
+    let attr_value = CString::new("test_value")?;
+    let mut buffer = vec![0u8; 128];
+
+    // Set extended attribute on file descriptor
+    let fsetxattr_e = opcode::FSetXattr::new(
+        fd,
+        attr_name.as_ptr(),
+        attr_value.as_ptr().cast(),
+        attr_value.as_bytes().len() as u32,
+    )
+    .flags(types::XattrFlags::empty())
+    .build()
+    .user_data(0x01)
+    .into();
+
+    unsafe {
+        ring.submission().push(&fsetxattr_e).expect("queue is full");
+    }
+
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 0x01);
+    assert_eq!(cqes[0].result(), Ok(0));
+
+    // Get extended attribute from file descriptor
+    let fgetxattr_e = opcode::FGetXattr::new(
+        fd,
+        attr_name.as_ptr(),
+        buffer.as_mut_ptr().cast(),
+        buffer.len() as u32,
+    )
+    .build()
+    .user_data(0x02)
+    .into();
+
+    unsafe {
+        ring.submission().push(&fgetxattr_e).expect("queue is full");
+    }
+
+    ring.submit_and_wait(1)?;
+
+    let cqes: Vec<cqueue::Entry> = ring.completion().map(Into::into).collect();
+    assert_eq!(cqes.len(), 1);
+    assert_eq!(cqes[0].user_data().u64_(), 0x02);
+    let len = cqes[0].result().unwrap() as usize;
+    assert_eq!(len, attr_value.as_bytes().len());
+
+    let retrieved_value = CString::new(&buffer[..len])?;
+    assert_eq!(retrieved_value, attr_value);
 
     Ok(())
 }
