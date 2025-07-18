@@ -243,6 +243,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "libc",
+ "linux-raw-sys",
  "once_cell",
  "rustix",
  "rustix-uring",

@@ -1,5 +1,7 @@
 //! Common Linux types not provided by libc.
 
+pub use ::rustix::io_uring::io_uring_zcrx_ifq_reg;
+
 pub(crate) mod sealed {
     use super::{Fd, Fixed};
     use rustix::fd::RawFd;

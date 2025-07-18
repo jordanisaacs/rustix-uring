@@ -2246,3 +2246,30 @@ opcode! {
         Entry(sqe)
     }
 }
+
+// === 6.15 ===
+
+opcode! {
+    /// Issue the zerocopy equivalent of a `recv(2)` system call.
+    pub struct RecvZc {
+        fd: { impl sealed::UseFixed },
+        len: { u32 },
+        ;;
+        ifq: u32 = 0,
+        ioprio: sys::IoringRecvFlags = sys::IoringRecvFlags::empty(),
+    }
+
+    pub const CODE = sys::IoringOp::RecvZc;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, len, ifq, ioprio } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.len.len = len;
+        sqe.ioprio.recv_flags = ioprio | sys::IoringRecvFlags::MULTISHOT;
+        sqe.splice_fd_in_or_file_index_or_addr_len.zcrx_ifq_idx = ifq;
+        Entry(sqe)
+    }
+}
