@@ -1,4 +1,5 @@
 pub mod cancel;
+pub mod epoll;
 pub mod fs;
 pub mod futex;
 pub mod net;
@@ -10,3 +11,4 @@ pub mod register_buffers;
 pub mod register_sync_cancel;
 pub mod regression;
 pub mod timeout;
+pub mod waitid;

@@ -89,8 +89,16 @@ fn test<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     tests::cancel::test_async_cancel_fd(&mut ring, &test)?;
     tests::cancel::test_async_cancel_fd_all(&mut ring, &test)?;
 
+    // epoll
+    tests::epoll::test_ready(&mut ring, &test)?;
+    tests::epoll::test_not_ready(&mut ring, &test)?;
+    tests::epoll::test_delete(&mut ring, &test)?;
+    tests::epoll::test_remove(&mut ring, &test)?;
+    tests::epoll::test_race(&mut ring, &test)?;
+
     // fs
     tests::fs::test_file_write_read(&mut ring, &test)?;
+    tests::fs::test_pipe_read_multishot(&mut ring, &test)?;
     tests::fs::test_file_writev_readv(&mut ring, &test)?;
     tests::fs::test_file_cur_pos(&mut ring, &test)?;
     tests::fs::test_file_fsync(&mut ring, &test)?;
@@ -106,6 +114,9 @@ fn test<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     tests::fs::test_file_splice(&mut ring, &test)?;
     tests::fs::test_ftruncate(&mut ring, &test)?;
     tests::fs::test_fixed_fd_install(&mut ring, &test)?;
+    tests::fs::test_get_set_xattr(&mut ring, &test)?;
+    tests::fs::test_f_get_set_xattr(&mut ring, &test)?;
+    tests::fs::test_pipe_fixed_writev_readv(&mut ring, &test)?;
 
     // timeout
     tests::timeout::test_timeout(&mut ring, &test)?;
@@ -139,10 +150,13 @@ fn test<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     tests::net::test_tcp_shutdown(&mut ring, &test)?;
     tests::net::test_socket(&mut ring, &test)?;
+    tests::net::test_socket_bind_listen(&mut ring, &test)?;
     tests::net::test_udp_recvmsg_multishot(&mut ring, &test)?;
     tests::net::test_udp_recvmsg_multishot_trunc(&mut ring, &test)?;
     tests::net::test_udp_send_with_dest(&mut ring, &test)?;
     tests::net::test_udp_sendzc_with_dest(&mut ring, &test)?;
+
+    tests::net::test_tcp_recvzc::<S>(&test)?;
 
     // queue
     tests::poll::test_eventfd_poll(&mut ring, &test)?;
@@ -154,6 +168,9 @@ fn test<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
     tests::futex::test_futex_wait(&mut ring, &test)?;
     tests::futex::test_futex_wake(&mut ring, &test)?;
     tests::futex::test_futex_waitv(&mut ring, &test)?;
+
+    // wait
+    tests::waitid::test_waitid(&mut ring, &test)?;
 
     // regression test
     tests::regression::test_issue154(&mut ring, &test)?;

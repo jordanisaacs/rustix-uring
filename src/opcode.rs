@@ -5,6 +5,7 @@
 use core::convert::TryInto;
 use core::mem;
 
+use ::rustix::io_uring::IoringSqeFlags;
 use rustix::fd::RawFd;
 
 use crate::squeue::Entry;
@@ -638,6 +639,35 @@ opcode! {
         if let Some(dest) = file_index {
             sqe.splice_fd_in_or_file_index_or_addr_len.file_index = dest.kernel_index_arg();
         }
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Set a socket option.
+    pub struct SetSockOpt {
+        fd: { impl sealed::UseFixed },
+        level: { u32 },
+        optname: { u32 },
+        optval: { *const core::ffi::c_void },
+        optlen: { u32 },
+        ;;
+        cmd_op: sys::IoringSocketOp = sys::IoringSocketOp::default()
+    }
+
+    pub const CODE = sys::IoringOp::UringCmd;
+
+    pub fn build(self) -> Entry {
+        let SetSockOpt { fd, level, optname, optval, optlen, cmd_op } = self;
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.cmd_op.cmd_op = sys::IoringSocketOp::Setsockopt as _;
+        sqe.addr_or_splice_off_in.sockopt_level_optname.level = level;
+        sqe.addr_or_splice_off_in.sockopt_level_optname.optname = optname;
+        sqe.op_flags.socket_op = cmd_op;
+        sqe.splice_fd_in_or_file_index_or_addr_len.optlen = optlen;
+        sqe.addr3_or_cmd.optval.ptr = optval.cast_mut();
         Entry(sqe)
     }
 }
@@ -1436,6 +1466,114 @@ opcode! {
     }
 }
 
+// === 5.17 ===
+
+opcode! {
+    /// Get extended attribute, equivalent to `getxattr(2)`.
+    pub struct GetXattr {
+        name: { *const sys::c_char },
+        value: { *mut core::ffi::c_void },
+        path: { *const sys::c_char },
+        len: { u32 },
+        ;;
+    }
+
+    pub const CODE = sys::IoringOp::Getxattr;
+
+    pub fn build(self) -> Entry {
+        let GetXattr { name, value, path, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value;
+        sqe.addr3_or_cmd.path.ptr = path.cast_mut().cast();
+        sqe.op_flags.xattr_flags = sys::XattrFlags::empty();
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Set extended attribute, equivalent to `setxattr(2)`.
+    pub struct SetXattr {
+        name: { *const sys::c_char },
+        value: { *const core::ffi::c_void },
+        path: { *const sys::c_char },
+        len: { u32 },
+        ;;
+        flags: sys::XattrFlags = sys::XattrFlags::empty()
+    }
+
+    pub const CODE = sys::IoringOp::Setxattr;
+
+    pub fn build(self) -> Entry {
+        let SetXattr { name, value, path, flags, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value.cast_mut();
+        sqe.addr3_or_cmd.path.ptr = path.cast_mut().cast();
+        sqe.op_flags.xattr_flags = flags;
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Get extended attribute from a file descriptor, equivalent to `fgetxattr(2)`.
+    pub struct FGetXattr {
+        fd: { impl sealed::UseFixed },
+        name: { *const sys::c_char },
+        value: { *mut core::ffi::c_void },
+        len: { u32 },
+        ;;
+    }
+
+    pub const CODE = sys::IoringOp::Fgetxattr;
+
+    pub fn build(self) -> Entry {
+        let FGetXattr { fd, name, value, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value;
+        sqe.op_flags.xattr_flags = sys::XattrFlags::empty();
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Set extended attribute on a file descriptor, equivalent to `fsetxattr(2)`.
+    pub struct FSetXattr {
+        fd: { impl sealed::UseFixed },
+        name: { *const sys::c_char },
+        value: { *const core::ffi::c_void },
+        len: { u32 },
+        ;;
+        flags: sys::XattrFlags = sys::XattrFlags::empty()
+    }
+
+    pub const CODE = sys::IoringOp::Fsetxattr;
+
+    pub fn build(self) -> Entry {
+        let FSetXattr { fd, name, value, flags, len } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = name.cast_mut().cast();
+        sqe.len.len = len;
+        sqe.off_or_addr2.addr2.ptr = value.cast_mut();
+        sqe.op_flags.xattr_flags = flags;
+        Entry(sqe)
+    }
+}
+
 // === 5.18 ===
 
 opcode! {
@@ -1753,6 +1891,65 @@ opcode! {
 // === 6.7 ===
 
 opcode! {
+    /// Issue the equivalent of `pread(2)` with multi-shot semantics.
+    pub struct ReadMulti {
+        fd: { impl sealed::UseFixed },
+        len: { u32 },
+        buf_group: { u16 },
+        ;;
+        offset: u64 = 0,
+    }
+
+    pub const CODE = sys::IoringOp::ReadMultishot;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, len, buf_group, offset } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.off = offset;
+        sqe.len.len = len;
+        sqe.buf.buf_group = buf_group;
+        sqe.flags = IoringSqeFlags::BUFFER_SELECT;
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Issue the equivalent of a waitid(2) system call.
+    pub struct Waitid {
+        id: { types::WaitId },
+        infop: { *mut types::WaitIdStatus },
+        ;;
+        options: types::WaitIdOptions = types::WaitIdOptions::empty()
+    }
+
+    pub const CODE = sys::IoringOp::Waitid;
+
+    pub fn build(self) -> Entry {
+        use ::linux_raw_sys::general::{P_ALL, P_PGID, P_PID, P_PIDFD};
+
+        let Self { id, infop, options } = self;
+
+        let (idtype, id) = match id {
+            types::WaitId::All => (P_ALL, 0),
+            types::WaitId::Pid(pid) => (P_PID, types::Pid::as_raw(Some(pid)) as _),
+            types::WaitId::Pgid(pgid) => (P_PGID, types::Pid::as_raw(pgid)) as _,
+            types::WaitId::PidFd(fd) => (P_PIDFD, fd.0),
+        };
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        sqe.fd = id;
+        sqe.len.len = idtype;
+        sqe.splice_fd_in_or_file_index_or_addr_len.file_index = options.bits();
+        sqe.off_or_addr2.addr2.ptr = infop.cast();
+        Entry(sqe)
+    }
+}
+
+opcode! {
     /// Wait on a futex, like but not equivalant to `futex(2)`'s `FUTEX_WAIT_BITSET`.
     ///
     /// Wait on a futex at address `futex` and which still has the value `val` and with `futex2(2)`
@@ -2000,6 +2197,166 @@ opcode! {
         sqe.buf.buf_group = buf_group;
         sqe.flags |= sys::IoringSqeFlags::BUFFER_SELECT;
         sqe.ioprio.recv_flags = sys::IoringRecvFlags::MULTISHOT | sys::IoringRecvFlags::BUNDLE;
+        Entry(sqe)
+    }
+}
+
+// === 6.11 ===
+
+opcode! {
+    /// Bind a socket, equivalent to `bind(2)`.
+    pub struct Bind {
+        fd: { impl sealed::UseFixed },
+        addr: { *const sys::SocketAddrOpaque },
+        addrlen: { sys::SocketAddrLen }
+        ;;
+    }
+
+    pub const CODE = sys::IoringOp::Bind;
+
+    pub fn build(self) -> Entry {
+        let Bind { fd, addr, addrlen } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = addr.cast_mut().cast();
+        sqe.off_or_addr2.off = u64::from(addrlen);
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Listen on a socket, equivalent to `listen(2)`.
+    pub struct Listen {
+        fd: { impl sealed::UseFixed },
+        backlog: { i32 },
+        ;;
+    }
+
+    pub const CODE = sys::IoringOp::Listen;
+
+    pub fn build(self) -> Entry {
+        let Listen { fd, backlog } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.len.len = backlog as _;
+        Entry(sqe)
+    }
+}
+
+// === 6.15 ===
+
+opcode! {
+    /// Issue the zerocopy equivalent of a `recv(2)` system call.
+    pub struct RecvZc {
+        fd: { impl sealed::UseFixed },
+        len: { u32 },
+        ;;
+        ifq: u32 = 0,
+        ioprio: sys::IoringRecvFlags = sys::IoringRecvFlags::empty(),
+    }
+
+    pub const CODE = sys::IoringOp::RecvZc;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, len, ifq, ioprio } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.len.len = len;
+        sqe.ioprio.recv_flags = ioprio | sys::IoringRecvFlags::MULTISHOT;
+        sqe.splice_fd_in_or_file_index_or_addr_len.zcrx_ifq_idx = ifq;
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Issue the equivalent of a `epoll_wait(2)` system call.
+    pub struct EpollWait {
+        fd: { impl sealed::UseFixed },
+        events: { *mut ::rustix::event::epoll::Event },
+        max_events: { u32 },
+        ;;
+        flags: u32 = 0,
+    }
+
+    pub const CODE = sys::IoringOp::EpollWait;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, events, max_events, flags } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.addr_or_splice_off_in.addr.ptr = events.cast();
+        sqe.len.len = max_events;
+        sqe.op_flags.poll32_events = flags;
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Vectored read into a fixed buffer, equivalent to `preadv2(2)`.
+    pub struct ReadvFixed {
+        fd: { impl sealed::UseFixed },
+        iovec: { *const types::iovec },
+        len: { u32 },
+        buf_index: { u16 },
+        ;;
+        ioprio: u16 = 0,
+        offset: u64 = 0,
+        rw_flags: types::RwFlags = types::RwFlags::empty(),
+    }
+
+    pub const CODE = sys::IoringOp::ReadvFixed;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, iovec, len, buf_index, offset, ioprio, rw_flags } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.off = offset as _;
+        sqe.addr_or_splice_off_in.addr.ptr = iovec as _;
+        sqe.len.len = len;
+        sqe.buf.buf_index = buf_index;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.op_flags.rw_flags = rw_flags;
+        Entry(sqe)
+    }
+}
+
+opcode! {
+    /// Vectored write from a fixed buffer, equivalent to `pwritev2(2)`.
+    pub struct WritevFixed {
+        fd: { impl sealed::UseFixed },
+        iovec: { *const sys::iovec },
+        len: { u32 },
+        buf_index: { u16 },
+        ;;
+        ioprio: u16 = 0,
+        offset: u64 = 0,
+        rw_flags: types::RwFlags = types::RwFlags::empty()
+    }
+
+    pub const CODE = sys::IoringOp::WritevFixed;
+
+    pub fn build(self) -> Entry {
+        let Self { fd, iovec, len, buf_index, offset, ioprio, rw_flags } = self;
+
+        let mut sqe = sqe_zeroed();
+        sqe.opcode = Self::CODE;
+        assign_fd!(sqe.fd = fd);
+        sqe.off_or_addr2.off = offset as _;
+        sqe.addr_or_splice_off_in.addr.ptr = iovec as _;
+        sqe.len.len = len;
+        sqe.buf.buf_index = buf_index;
+        sqe.ioprio.ioprio = ioprio;
+        sqe.op_flags.rw_flags = rw_flags;
         Entry(sqe)
     }
 }
