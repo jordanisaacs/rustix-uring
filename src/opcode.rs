@@ -330,7 +330,7 @@ opcode! {
         /// The bits that may be set in `flags` are defined in `<poll.h>`,
         /// and documented in `poll(2)`.
         fd: { impl sealed::UseFixed },
-        flags: { u32 },
+        poll_mask: { rustix::event::epoll::EventFlags },
         ;;
         multi: bool = false
     }
@@ -338,7 +338,7 @@ opcode! {
     pub const CODE = sys::IoringOp::PollAdd;
 
     pub fn build(self) -> Entry {
-        let PollAdd { fd, flags, multi } = self;
+        let PollAdd { fd, poll_mask, multi } = self;
 
         let mut sqe = sqe_zeroed();
         sqe.opcode = Self::CODE;
@@ -348,14 +348,15 @@ opcode! {
         }
 
         #[cfg(target_endian = "little")] {
-            sqe.op_flags.poll32_events = flags;
+            sqe.op_flags.poll32_events = poll_mask.bits();
         }
 
         #[cfg(target_endian = "big")] {
-            let x = flags << 16;
-            let y = flags >> 16;
-            let flags = x | y;
-            sqe.op_flags.poll32_events = flags;
+            let poll_mask = poll_mask.bits();
+            let x = poll_mask << 16;
+            let y = poll_mask >> 16;
+            let poll_mask = x | y;
+            sqe.op_flags.poll32_events = poll_mask;
         }
 
         Entry(sqe)

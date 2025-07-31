@@ -1,6 +1,7 @@
 use crate::Test;
 use io_uring::types::CancelBuilder;
 use io_uring::{cqueue, opcode, squeue, types, Errno, IoUring};
+use rustix::event::epoll::EventFlags;
 use std::fs::File;
 use std::os::fd::FromRawFd;
 use std::os::unix::io::AsRawFd;
@@ -169,7 +170,7 @@ pub fn test_async_cancel_fd<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let _fd = create_dummy_fd()?;
     let fd = types::Fd(_fd.as_raw_fd());
-    let poll_e = opcode::PollAdd::new(fd, libc::POLLIN as _).build();
+    let poll_e = opcode::PollAdd::new(fd, EventFlags::IN).build();
 
     // Cancel one poll request matching FD
     let builder = CancelBuilder::fd(fd);
@@ -218,7 +219,7 @@ pub fn test_async_cancel_fd_all<S: squeue::EntryMarker, C: cqueue::EntryMarker>(
 
     let _fd = create_dummy_fd()?;
     let fd = types::Fd(_fd.as_raw_fd());
-    let poll_e = opcode::PollAdd::new(fd, libc::POLLIN as _).build();
+    let poll_e = opcode::PollAdd::new(fd, EventFlags::IN).build();
 
     // Cancel all requests matching FD
     let builder = CancelBuilder::fd(fd).all();
