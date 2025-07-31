@@ -196,6 +196,40 @@ impl<S: squeue::EntryMarker, C: cqueue::EntryMarker> IoUring<S, C> {
         &self.params
     }
 
+    /// Pushes all the given entries to the submission queue and submits them.
+    ///
+    /// All entries will be submitted.  This may require multiple syscalls if
+    /// the number of entries exceeds the free space in the submission queue.
+    ///
+    /// # Safety
+    ///
+    /// Developers must ensure that parameters of the entry (such as buffer) are valid and will
+    /// be valid for the entire duration of the operation, otherwise it may cause memory problems.
+    pub unsafe fn submit_all(&mut self, mut entries: impl Iterator<Item = S>) -> Result<usize> {
+        let mut submitted = 0;
+        'outer: loop {
+            let mut sq = self.sq.borrow();
+            let n = sq.capacity() - sq.len();
+            for _ in 0..n {
+                let Some(e) = entries.next() else {
+                    // All entries have been pushed
+                    break 'outer;
+                };
+                // SAFETY: The free capacity was `n` when we checked earlier.
+                // We've pushed fewer than `n` entries since then, and `sq` has
+                // been borrowed by us this whole time so no-one else should
+                // have pushed anything.
+                unsafe { sq.push_unchecked(&e) };
+            }
+            // The squeue is full but we have more entries to push.  Empty the
+            // squeue and loop.
+            core::mem::drop(sq);
+            submitted += self.submit()?;
+        }
+        submitted += self.submit()?;
+        Ok(submitted)
+    }
+
     /// Initiate asynchronous I/O. See [`Submitter::submit`] for more details.
     #[inline]
     pub fn submit(&self) -> Result<usize> {
