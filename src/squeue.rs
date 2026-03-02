@@ -38,12 +38,42 @@ pub trait EntryMarker: Clone + Debug + From<Entry> + private::Sealed {
 /// A 64-byte submission queue entry (SQE), representing a request for an I/O operation.
 ///
 /// These can be created via opcodes in [`opcode`](crate::opcode).
+///
+/// # Example
+///
+/// ```
+/// use rustix_uring::{opcode, types};
+/// use std::ffi::CString;
+/// use std::os::fd::AsRawFd;
+/// use rustix::fs::OFlags;
+///
+/// let path = CString::new("/etc/passwd").unwrap();
+/// let entry = opcode::OpenAt::new(types::Fd(rustix::fs::CWD.as_raw_fd()), path.as_ptr())
+///     .flags(OFlags::RDONLY)
+///     .build();
+/// ```
 #[repr(C)]
 pub struct Entry(pub(crate) sys::io_uring_sqe);
 
 /// A 128-byte submission queue entry (SQE), representing a request for an I/O operation.
 ///
 /// These can be created via opcodes in [`opcode`](crate::opcode).
+///
+/// # Example
+///
+/// ```
+/// use rustix_uring::{opcode, types};
+/// use rustix_uring::squeue::Entry128;
+/// use std::ffi::CString;
+/// use std::os::fd::AsRawFd;
+/// use rustix::fs::OFlags;
+///
+/// let path = CString::new("/etc/passwd").unwrap();
+/// let entry: Entry128 = opcode::OpenAt::new(types::Fd(rustix::fs::CWD.as_raw_fd()), path.as_ptr())
+///     .flags(OFlags::RDONLY)
+///     .build()
+///     .into();
+/// ```
 #[repr(C)]
 #[derive(Clone)]
 pub struct Entry128(pub(crate) Entry, pub(crate) [u8; 64]);
